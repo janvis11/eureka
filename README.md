@@ -4,7 +4,7 @@ Eureka is an intelligent research platform that helps scientists discover connec
 
 ---
 
-## 🎯 Features
+## Features
 
 ### Core Capabilities
 
@@ -33,20 +33,8 @@ Eureka is an intelligent research platform that helps scientists discover connec
 
 ---
 
-## 📋 Prerequisites
 
-### Frontend
-- **Node.js** 18+ ([Download](https://nodejs.org/))
-- **npm** 7+ (comes with Node.js)
-
-### Backend
-- **Python** 3.10+ ([Download](https://www.python.org/downloads/))
-- **PostgreSQL** 14+ (optional, for production)
-- **ChromaDB** (embedded, no setup needed)
-
----
-
-## 🚀 Quick Start
+## Quick Start
 
 ### 1. Clone Repository
 
@@ -99,7 +87,7 @@ The backend API will be available at **http://localhost:8000**
 ---
 
 
-## 🛠️ Development
+## Development
 
 ### Frontend Commands
 
@@ -151,7 +139,7 @@ pytest tests/
 
 ---
 
-## 🔧 Configuration
+## Configuration
 
 ### Environment Variables
 
@@ -176,7 +164,7 @@ Backend configuration is managed in `backend/app/config.py`. Key settings:
 
 ---
 
-## 📚 API Endpoints
+## API Endpoints
 
 ### Document Management
 
