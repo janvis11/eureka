@@ -12,34 +12,34 @@ alembic==1.12.1
 
 # Vector Store & Embeddings
 faiss-cpu==1.8.0
-sentence-transformers==2.2.2
-numpy==1.26.4
+sentence-transformers
+numpy
 
 # Hugging Face local inference (free models)
-transformers>=4.36.0
-huggingface-hub>=0.16.4
-accelerate>=0.20.3
+transformers
+huggingface-hub
+accelerate
 
 # LLM API
-groq==0.4.1
+groq
 
 # Document Processing (PDF only, no NLP)
-PyPDF2==3.0.1
-pdfplumber==0.10.3
+PyPDF2
+pdfplumber
 
 # Utilities
-python-dotenv==1.0.0
-python-jose[cryptography]==3.3.0
-passlib[bcrypt]==1.7.4
-python-dateutil==2.8.2
+python-dotenv
+python-jose[cryptography]
+passlib[bcrypt]
+python-dateutil
 
 # Testing
-pytest==7.4.3
-pytest-asyncio==0.21.1
-httpx==0.25.2
+pytest
+pytest-asyncio
+httpx
 
-transformers>=4.40.0
-sentence-transformers>=2.6.1
+transformers
+sentence-transformers
 torch
 networkx
 scikit-learn
