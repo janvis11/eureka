@@ -38,6 +38,8 @@ class Settings(BaseSettings):
     KEYWORD_MODEL: str = "google/flan-t5-small"
     # Toggle to use local HF models for generation (discovery/keywords)
     HF_USE_LOCAL_GENERATOR: bool = True
+    # Optional: HuggingFace API token for Inference API
+    HF_API_TOKEN: str = os.getenv("HF_API_TOKEN", "")
     
     # Discovery Settings
     MAX_GAPS: int = 15
