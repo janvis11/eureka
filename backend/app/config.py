@@ -1,6 +1,5 @@
 from pydantic_settings import BaseSettings
 from functools import lru_cache
-import os
 
 
 class Settings(BaseSettings):
@@ -11,13 +10,13 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     
     # Database
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./eureka.db")
+    DATABASE_URL: str = "sqlite:///./eureka.db"
     
     # Vector Store
-    CHROMADB_PATH: str = os.getenv("CHROMADB_PATH", "./chromadb")
+    CHROMADB_PATH: str = "./chromadb"
     
     # File Upload
-    UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", "./uploads")
+    UPLOAD_DIR: str = "./uploads"
     MAX_UPLOAD_SIZE: int = 100 * 1024 * 1024  # 100MB
     
     # RAG Settings
@@ -27,7 +26,7 @@ class Settings(BaseSettings):
     EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"
     
     # LLM Settings
-    GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
+    GROQ_API_KEY: str = ""
     LLM_MODEL: str = "llama-3.1-70b-versatile"
     LLM_TEMPERATURE: float = 0.7
     LLM_MAX_TOKENS: int = 1000
@@ -39,7 +38,7 @@ class Settings(BaseSettings):
     # Toggle to use local HF models for generation (discovery/keywords)
     HF_USE_LOCAL_GENERATOR: bool = True
     # Optional: HuggingFace API token for Inference API
-    HF_API_TOKEN: str = os.getenv("HF_API_TOKEN", "")
+    HF_API_TOKEN: str = ""
     
     # Discovery Settings
     MAX_GAPS: int = 15
@@ -47,12 +46,13 @@ class Settings(BaseSettings):
     TREND_WINDOW_DAYS: int = 365
     
     # Security
-    SECRET_KEY: str = os.getenv("SECRET_KEY", "your-secret-key-change-in-production")
+    SECRET_KEY: str = "your-secret-key-change-in-production"
     ALGORITHM: str = "HS256"
     
     class Config:
         env_file = ".env"
         case_sensitive = False
+        extra = "ignore"
 
 
 @lru_cache()
