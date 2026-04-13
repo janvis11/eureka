@@ -10,6 +10,9 @@ from app.services.rag_engine import RAGEngine
 from app.services.knowledge_graph import KeywordExtractor
 from app.services.shared import hf_client as shared_hf_client
 from app.config import get_settings
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/discovery", tags=["discovery"])
 settings = get_settings()
@@ -67,7 +70,7 @@ async def analyze_documents(
             hypotheses=analysis.get("hypotheses", []),
             contradictions=analysis.get("contradictions", []),
             trends=analysis.get("trends", []),
-            metadata=analysis.get("summary", {})
+            doc_metadata=analysis.get("summary", {})
         )
         db.add(discovery)
         db.commit()
@@ -366,4 +369,4 @@ async def get_discovery_summary(
             "trends_identified": 0
         }
     
-    return discovery.metadata
+    return discovery.doc_metadata
