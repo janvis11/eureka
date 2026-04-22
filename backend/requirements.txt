@@ -16,8 +16,8 @@ sentence-transformers
 numpy
 
 # Hugging Face local inference (free models)
-transformers
-huggingface-hub
+transformers>=4.40.0,<4.50.0
+huggingface-hub>=0.20.0,<0.24.0
 accelerate
 
 # LLM API
@@ -33,17 +33,16 @@ python-jose[cryptography]
 passlib[bcrypt]
 python-dateutil
 
+# NumPy compatibility (faiss requires numpy < 2.0)
+numpy<2.0
+
 # Testing
 pytest
 pytest-asyncio
 httpx
 
-transformers
-sentence-transformers
-torch
+# Additional ML dependencies
 networkx
 scikit-learn
-bertopic
-numpy
 pandas
 
