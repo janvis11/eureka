@@ -5,6 +5,9 @@ python-multipart==0.0.6
 pydantic==2.5.0
 pydantic-settings==2.1.0
 
+# Rate limiting
+slowapi==0.1.9
+
 # Database
 sqlalchemy==2.0.23
 psycopg2-binary==2.9.9
@@ -45,4 +48,7 @@ httpx
 networkx
 scikit-learn
 pandas
+
+# Observability
+python-json-logger==2.0.7
 
