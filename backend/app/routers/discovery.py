@@ -8,7 +8,7 @@ from app.models.models import Discovery, Document
 from app.services.discovery_engine import DiscoveryEngine
 from app.services.rag_engine import RAGEngine
 from app.services.knowledge_graph import KeywordExtractor
-from app.services.shared import hf_client as shared_hf_client
+from app.services.shared import get_hf_client
 from app.config import get_settings
 import logging
 
@@ -18,9 +18,9 @@ router = APIRouter(prefix="/discovery", tags=["discovery"])
 settings = get_settings()
 
 # Initialize services
-rag_engine = RAGEngine(hf_client=shared_hf_client)
-keyword_extractor = KeywordExtractor(hf_client=shared_hf_client)
-discovery_engine = DiscoveryEngine(rag_engine, keyword_extractor, hf_client=shared_hf_client)
+rag_engine = RAGEngine(hf_client=get_hf_client())
+keyword_extractor = KeywordExtractor(hf_client=get_hf_client())
+discovery_engine = DiscoveryEngine(rag_engine, keyword_extractor, hf_client=get_hf_client())
 
 
 @router.post("/analyze")
