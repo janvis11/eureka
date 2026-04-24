@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, JSON, create_engine
+from sqlalchemy import Column, Integer, String, Text, DateTime, JSON, create_engine, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime
@@ -10,10 +10,29 @@ logger = logging.getLogger(__name__)
 settings = get_settings()
 DATABASE_URL = settings.DATABASE_URL or "sqlite:///./eureka.db"
 
-# Create engine
+# Create engine with production-ready connection pooling
+connect_args = {}
+engine_kwargs = {
+    "echo": settings.DEBUG,  # Log SQL queries in debug mode
+    "pool_pre_ping": True,   # Enable connection health checks
+    "pool_recycle": 3600,    # Recycle connections after 1 hour
+}
+
+if "sqlite" in DATABASE_URL:
+    connect_args["check_same_thread"] = False
+    # SQLite doesn't use connection pooling
+    engine_kwargs.pop("pool_pre_ping", None)
+    engine_kwargs.pop("pool_recycle", None)
+elif "postgresql" in DATABASE_URL:
+    connect_args.update({
+        "pool_size": 20,
+        "max_overflow": 10,
+    })
+
 engine = create_engine(
     DATABASE_URL,
-    connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {}
+    connect_args=connect_args,
+    **engine_kwargs
 )
 
 # Create session
@@ -23,10 +42,14 @@ Base = declarative_base()
 
 
 def get_db():
-    """Get database session."""
+    """Get database session with proper error handling."""
     db = SessionLocal()
     try:
         yield db
+    except Exception as e:
+        logger.error(f"Database session error: {e}")
+        db.rollback()
+        raise
     finally:
         db.close()
 
@@ -47,7 +70,7 @@ class Document(Base):
     upload_date = Column(DateTime, default=datetime.now)
     processing_status = Column(String, default="pending")  # pending, processing, completed, failed
     chunk_count = Column(Integer, default=0)
-    metadata = Column(JSON, default={})
+    doc_metadata = Column(JSON, default={})
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
@@ -72,7 +95,7 @@ class Discovery(Base):
     hypotheses = Column(JSON, default=[])
     contradictions = Column(JSON, default=[])
     trends = Column(JSON, default=[])
-    metadata = Column(JSON, default={})
+    doc_metadata = Column(JSON, default={})
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
