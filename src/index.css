@@ -16,13 +16,91 @@ body {
   background: rgba(255, 255, 255, 0.2);
 }
 
-@keyframes rotate {
+@keyframes networkDash {
   from {
-    transform: rotate(0deg);
+    stroke-dashoffset: 180;
   }
   to {
-    transform: rotate(360deg);
+    stroke-dashoffset: 0;
   }
+}
+
+@keyframes networkPulse {
+  0%, 100% {
+    opacity: 0.45;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.12);
+  }
+}
+
+@keyframes networkScan {
+  0% {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  12% {
+    opacity: 0.45;
+  }
+  60% {
+    opacity: 0.18;
+  }
+  100% {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+}
+
+@keyframes networkCore {
+  0%, 100% {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+}
+
+.network-path {
+  animation: networkDash 7s linear infinite;
+}
+
+.network-edge {
+  animation: networkDash 8s linear infinite;
+}
+
+.network-node {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: networkPulse 3.8s ease-in-out infinite;
+}
+
+.network-ring {
+  animation: networkDash 14s linear infinite reverse;
+}
+
+.network-core {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: networkCore 4.8s ease-in-out infinite;
+}
+
+.network-scanline::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 160px;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    rgba(255, 255, 255, 0.08),
+    transparent
+  );
+  animation: networkScan 7s ease-in-out infinite;
 }
 
 .glass {
