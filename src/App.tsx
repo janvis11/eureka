@@ -5,6 +5,7 @@ import MainLayout from './layouts/MainLayout';
 
 // Lazy load pages for better performance
 const LandingPage = lazy(() => import('./pages/LandingPage'));
+const WorkspacePage = lazy(() => import('./pages/WorkspacePage'));
 const ChatPage = lazy(() => import('./pages/ChatPage'));
 const KnowledgeGraphPage = lazy(() => import('./pages/KnowledgeGraphPage'));
 const DiscoveryPage = lazy(() => import('./pages/DiscoveryPage'));
@@ -30,6 +31,14 @@ const App = () => (
             element={
               <Suspense fallback={<LoadingFallback />}>
                 <LandingPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/workspace"
+            element={
+              <Suspense fallback={<LoadingFallback />}>
+                <WorkspacePage />
               </Suspense>
             }
           />
