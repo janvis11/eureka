@@ -17,11 +17,13 @@ export type ResearchGap = {
   id: string;
   title: string;
   description: string;
-  concept1: string;
-  concept2: string;
+  concept1?: string;
+  concept2?: string;
   impact: 'low' | 'medium' | 'high';
   confidence: number;
   potentialPath?: string[];
+  evidenceCount?: number;
+  source?: string;
 };
 
 export type Hypothesis = {
@@ -30,6 +32,15 @@ export type Hypothesis = {
   rationale?: string;
   methodology?: string;
   expectedImpact?: string;
+  evidence?: string[];
+  counterEvidence?: string[];
+  novelty?: string;
+  feasibility?: string;
+  falsifiability?: string;
+  validationPlan?: string;
+  noveltyScore?: number;
+  feasibilityScore?: number;
+  falsifiabilityScore?: number;
   confidence: number;
   votesUp: number;
   votesDown: number;
@@ -46,7 +57,9 @@ export type GraphStats = {
   breakdown?: {
     papers: number;
     concepts: number;
-    methods: number;
+    methods?: number;
+    claims?: number;
+    hypotheses?: number;
   };
 };
 
@@ -78,4 +91,3 @@ export type ApiState<T> = {
   error: string | null;
   refresh: () => Promise<void>;
 };
-
