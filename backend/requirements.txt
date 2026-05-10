@@ -13,20 +13,15 @@ sqlalchemy==2.0.23
 psycopg2-binary==2.9.9
 alembic==1.12.1
 
-# Vector Store & Embeddings
+# Vector Store
 faiss-cpu==1.8.0
-sentence-transformers
-numpy
+numpy<2.0
 
-# Hugging Face local inference (free models)
-transformers>=4.40.0,<4.50.0
-huggingface-hub>=0.20.0,<0.24.0
-accelerate
-
-# LLM API
+# Model Gateway - Provider SDKs (install whichever you use)
 groq
+openai>=1.0
 
-# Document Processing (PDF only, no NLP)
+# Document Processing (PDF only)
 PyPDF2
 pdfplumber
 
@@ -36,19 +31,19 @@ python-jose[cryptography]
 passlib[bcrypt]
 python-dateutil
 
-# NumPy compatibility (faiss requires numpy < 2.0)
-numpy<2.0
+# Graph / Analysis
+networkx
+scikit-learn
+pandas
+neo4j
 
 # Testing
 pytest
 pytest-asyncio
 httpx
 
-# Additional ML dependencies
-networkx
-scikit-learn
-pandas
-
 # Observability
 python-json-logger==2.0.7
 
+# Optional: local embedding fallback (not required if using API embeddings)
+# sentence-transformers
