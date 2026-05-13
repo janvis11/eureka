@@ -9,6 +9,7 @@ type NavItem = {
 
 const navItems: NavItem[] = [
   { name: 'HOME', path: '/' },
+  { name: 'WORKSPACE', path: '/workspace' },
   { name: 'CHAT', path: '/chat' },
   { name: 'GRAPH', path: '/knowledge-graph' },
   { name: 'DISCOVER', path: '/discovery' },
@@ -26,7 +27,10 @@ const Navbar = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const isDarkRoute = useMemo(() => location.pathname === '/', [location.pathname]);
+  const isDarkRoute = useMemo(
+    () => ['/', '/workspace', '/chat', '/knowledge-graph', '/discovery', '/hypothesis'].includes(location.pathname),
+    [location.pathname]
+  );
 
   return (
     <nav
@@ -42,16 +46,14 @@ const Navbar = () => {
       <div className="max-w-7xl mx-auto px-6 md:px-12">
         <div className="flex items-center justify-between h-20">
           <Link to="/" className="flex items-center space-x-3 group">
-            <div
+            <img
+              src="/eureka_logo.png"
+              alt="Eureka"
               className={clsx(
-                'w-10 h-10 border-2 flex items-center justify-center transition-all duration-300',
-                isDarkRoute
-                  ? 'border-white text-white group-hover:bg-white group-hover:text-black'
-                  : 'border-black text-black group-hover:bg-black group-hover:text-white'
+                'w-10 h-10 object-cover border transition-all duration-300',
+                isDarkRoute ? 'border-white/30' : 'border-black/20'
               )}
-            >
-              <span className="font-bold text-lg">E</span>
-            </div>
+            />
             <span
               className={clsx('text-xl font-bold tracking-tighter', isDarkRoute ? 'text-white' : 'text-black')}
             >
@@ -83,14 +85,14 @@ const Navbar = () => {
           </div>
 
           <button
-            onClick={() => navigate('/chat')}
-            aria-label="Start research chat"
+            onClick={() => navigate('/workspace')}
+            aria-label="Open research workspace"
             className={clsx(
               'px-6 py-2.5 text-xs font-bold tracking-wider transition-all duration-300',
               isDarkRoute ? 'bg-white text-black hover:bg-gray-200' : 'bg-black text-white hover:bg-gray-800'
             )}
           >
-            START
+            UPLOAD
           </button>
         </div>
       </div>
