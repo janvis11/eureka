@@ -11,6 +11,9 @@ export type ChatMessage = {
   content: string;
   citations?: Citation[];
   createdAt: string;
+  contextDocumentId?: number;
+  contextTitle?: string;
+  contextMode?: 'selected' | 'matched' | 'corpus';
 };
 
 export type ResearchGap = {
