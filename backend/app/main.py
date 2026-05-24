@@ -1,16 +1,23 @@
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from slowapi import SlowAPI, _rate_limit_exceeded_handler
-from slowapi.errors import RateLimitExceeded
-from slowapi.util import get_remote_address
+try:
+    from slowapi import SlowAPI, _rate_limit_exceeded_handler
+    from slowapi.errors import RateLimitExceeded
+    from slowapi.util import get_remote_address
+except Exception:  # pragma: no cover - optional dependency in local dev
+    SlowAPI = None
+    _rate_limit_exceeded_handler = None
+    RateLimitExceeded = None
+    get_remote_address = None
 from contextlib import asynccontextmanager
 import logging
 import sys
 import time
 from sqlalchemy import text
 
-from app.routers import documents, query, discovery
+from app.routers import documents, query, discovery, graph
 from app.models.database import init_db
 from app.config import get_settings
 
@@ -25,11 +32,14 @@ logger = logging.getLogger(__name__)
 # Set logging levels for dependencies
 logging.getLogger("uvicorn").setLevel(logging.INFO)
 logging.getLogger("sqlalchemy").setLevel(logging.WARNING)
-logging.getLogger("transformers").setLevel(logging.ERROR)
 
 
 def setup_rate_limiter(app: FastAPI):
     """Configure rate limiting for API endpoints."""
+    if SlowAPI is None or get_remote_address is None or RateLimitExceeded is None:
+        logger.warning("Rate limiting disabled: slowapi is not installed")
+        return None
+
     try:
         limiter = SlowAPI(
             key_func=get_remote_address,
@@ -48,25 +58,22 @@ def check_dependencies():
     settings = get_settings()
     logger.info("Checking dependencies...")
 
-    # Check embedding model
+    # Check model gateway
     try:
-        from app.services.shared import hf_client
-        hf_client.embed_text("test")
-        logger.info("Embedding model loaded successfully")
+        from app.services.shared import get_gateway
+        gateway = get_gateway()
+        provider_type = type(gateway).__name__
+        logger.info(f"Model gateway initialized: {provider_type}")
     except Exception as e:
-        logger.error(f"Embedding model failed: {e}")
+        logger.error(f"Model gateway failed: {e}")
 
-    # Warn if GROQ API key not set
-    if not settings.GROQ_API_KEY:
-        logger.warning("GROQ_API_KEY not set - LLM generation will fall back to local models")
-    else:
-        logger.info("GROQ API key configured")
-
-    # Warn if HF API token not set
-    if not settings.HF_API_TOKEN:
-        logger.info("HF_API_TOKEN not set - using local models only")
-    else:
-        logger.info("HuggingFace API token configured")
+    # Log provider info
+    if settings.GROQ_API_KEY:
+        logger.info("Groq API key configured")
+    if getattr(settings, "OPENAI_API_KEY", None):
+        logger.info("OpenAI API key configured")
+    if not settings.GROQ_API_KEY and not getattr(settings, "OPENAI_API_KEY", None):
+        logger.warning("No LLM API keys set — using fake provider or will fail at runtime")
 
 
 @asynccontextmanager
@@ -79,6 +86,16 @@ async def lifespan(app: FastAPI):
 
     init_db()
     logger.info("Database initialized")
+
+    # Initialize Neo4j connection
+    try:
+        from app.services.graph.neo4j_client import get_neo4j_client
+        neo4j_client = get_neo4j_client()
+        await neo4j_client.connect()
+        await neo4j_client.initialize_schema()
+        logger.info("Neo4j knowledge graph initialized")
+    except Exception as e:
+        logger.warning(f"Neo4j not available (this is OK for development): {e}")
 
     check_dependencies()
 
@@ -100,8 +117,8 @@ async def lifespan(app: FastAPI):
 # Create FastAPI app
 app = FastAPI(
     title="Eureka AI Backend",
-    description="Simple RAG + Discovery backend for research papers",
-    version="0.2.0",
+    description="Discovery platform backend — provider-agnostic RAG + Discovery",
+    version="0.3.0",
     lifespan=lifespan
 )
 
@@ -143,6 +160,7 @@ if not settings.DEBUG:
 app.include_router(documents.router, prefix="/api", tags=["documents"])
 app.include_router(query.router, prefix="/api", tags=["queries"])
 app.include_router(discovery.router, prefix="/api", tags=["discovery"])
+app.include_router(graph.router, prefix="/api", tags=["graph"])
 
 
 @app.get("/health")
@@ -153,10 +171,12 @@ async def health_check():
     health_status = {
         "status": "healthy",
         "service": "Eureka AI Backend",
-        "version": "0.2.0",
+        "version": "0.3.0",
         "checks": {
             "database": "unknown",
-            "vector_store": "unknown"
+            "vector_store": "unknown",
+            "model_gateway": "unknown",
+            "knowledge_graph": "unknown"
         }
     }
 
@@ -174,8 +194,8 @@ async def health_check():
     # Check vector store
     try:
         from app.services.rag_engine import RAGEngine
-        from app.services.shared import hf_client as shared_hf_client
-        rag = RAGEngine(hf_client=shared_hf_client)
+        from app.services.shared import get_gateway
+        rag = RAGEngine(gateway=get_gateway())
         stats = rag.get_stats()
         health_status["checks"]["vector_store"] = "healthy"
         health_status["vector_store_chunks"] = stats.get("total_chunks", 0)
@@ -183,6 +203,31 @@ async def health_check():
         health_status["checks"]["vector_store"] = "unhealthy"
         health_status["status"] = "degraded"
         logger.error(f"Vector store health check failed: {e}")
+
+    # Check model gateway
+    try:
+        from app.services.shared import get_gateway
+        gateway = get_gateway()
+        health_status["checks"]["model_gateway"] = "healthy"
+        health_status["model_provider"] = type(gateway).__name__
+    except Exception as e:
+        health_status["checks"]["model_gateway"] = "unhealthy"
+        health_status["status"] = "degraded"
+        logger.error(f"Model gateway health check failed: {e}")
+
+    # Check knowledge graph (Neo4j)
+    try:
+        from app.services.graph.neo4j_client import get_neo4j_client
+        neo4j = get_neo4j_client()
+        if neo4j.is_connected:
+            stats = await neo4j.execute_query("MATCH (n) RETURN count(n) AS count")
+            health_status["checks"]["knowledge_graph"] = "healthy"
+            health_status["graph_nodes"] = stats[0].get("count", 0) if stats else 0
+        else:
+            health_status["checks"]["knowledge_graph"] = "disconnected"
+    except Exception as e:
+        health_status["checks"]["knowledge_graph"] = "unhealthy"
+        logger.warning(f"Neo4j health check failed (may not be running): {e}")
 
     return health_status
 
@@ -213,18 +258,21 @@ async def add_process_time_header(request: Request, call_next):
 async def global_exception_handler(request: Request, exc: Exception):
     """Global exception handler for unhandled errors."""
     logger.error(f"Unhandled exception in {request.method} {request.url.path}: {exc}", exc_info=True)
-    return {
-        "detail": "Internal server error",
-        "type": type(exc).__name__
-    }, 500
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": "Internal server error",
+            "type": type(exc).__name__,
+        },
+    )
 
 
 @app.get("/")
 async def root():
     """Root endpoint."""
     return {
-        "message": "Eureka AI - Research Paper Analysis Platform",
-        "version": "0.2.0",
+        "message": "Eureka AI - Research Discovery Platform",
+        "version": "0.3.0",
         "endpoints": {
             "health": "/health",
             "documents": "/api/documents",
