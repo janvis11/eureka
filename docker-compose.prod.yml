@@ -1,0 +1,101 @@
+version: '3.8'
+
+# Production configuration with additional security and scaling
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+services:
+  frontend:
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    environment:
+      - NODE_ENV=production
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  backend:
+    deploy:
+      replicas: 3
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '1.0'
+          memory: 1G
+    environment:
+      - DEBUG=false
+      - LOG_LEVEL=WARNING
+      # Production database - replace with actual PostgreSQL connection string
+      - DATABASE_URL=postgresql://eureka:${DB_PASSWORD:-CHANGE_ME_PASSWORD}@db:5432/eureka
+      - SECRET_KEY=${SECRET_KEY:-CHANGE_ME_SECRET_KEY}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-*}
+      - RATE_LIMIT_PER_MINUTE=100
+      - RATE_LIMIT_PER_HOUR=1000
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # PostgreSQL database for production
+  db:
+    image: postgres:15-alpine
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=eureka
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-CHANGE_ME_PASSWORD}
+      - POSTGRES_DB=eureka
+    networks:
+      - eureka-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U eureka -d eureka"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for production
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-CHANGE_ME_REDIS_PASSWORD}
+    volumes:
+      - redis-data:/data
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+networks:
+  eureka-network:
+    driver: bridge  # Use bridge for non-swarm, overlay for swarm mode
+
+volumes:
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
