@@ -3,6 +3,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime
 from app.config import get_settings
+from fastapi import HTTPException
 import logging
 
 logger = logging.getLogger(__name__)
@@ -20,6 +21,7 @@ engine_kwargs = {
 
 if "sqlite" in DATABASE_URL:
     connect_args["check_same_thread"] = False
+    connect_args["timeout"] = 30
     # SQLite doesn't use connection pooling
     engine_kwargs.pop("pool_pre_ping", None)
     engine_kwargs.pop("pool_recycle", None)
@@ -46,6 +48,9 @@ def get_db():
     db = SessionLocal()
     try:
         yield db
+    except HTTPException:
+        db.rollback()
+        raise
     except Exception as e:
         logger.error(f"Database session error: {e}")
         db.rollback()
@@ -57,6 +62,13 @@ def get_db():
 def init_db():
     """Initialize database tables."""
     Base.metadata.create_all(bind=engine)
+    if "sqlite" in DATABASE_URL:
+        try:
+            with engine.begin() as conn:
+                conn.execute(text("PRAGMA journal_mode=WAL"))
+                conn.execute(text("PRAGMA busy_timeout=30000"))
+        except Exception as e:
+            logger.warning(f"Could not enable SQLite WAL mode: {e}")
     logger.info("Database tables initialized")
 
 
