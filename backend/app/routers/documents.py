@@ -47,6 +47,9 @@ async def process_document_background(document_id: int, file_path: str):
 
         logger.info(f"Processing document {document_id}: {file_path}")
 
+        section_count = 0
+        vector_status = "not_started"
+
         # ----------------------------------------------------------------
         # Step 1: Extract document structure (PageIndex-inspired)
         # ----------------------------------------------------------------
@@ -57,9 +60,10 @@ async def process_document_background(document_id: int, file_path: str):
                 doc_id=doc_id_str,
             )
             structural_engine.index_document(doc_id_str, section_tree)
+            section_count = section_tree.total_sections
             logger.info(
                 f"Structural index built for doc {document_id}: "
-                f"{section_tree.total_sections} sections"
+                f"{section_count} sections"
             )
         except Exception as e:
             logger.warning(f"Structural extraction failed for {document_id}: {e} — using chunk fallback")
@@ -69,11 +73,22 @@ async def process_document_background(document_id: int, file_path: str):
         # ----------------------------------------------------------------
         result = await doc_processor.process_document(file_path)
 
-        chunk_count = await rag_engine.add_document_chunks(
-            chunks=result["chunks"],
-            document_id=document_id,
-            metadata=result["metadata"]
-        )
+        try:
+            chunk_count = await rag_engine.add_document_chunks(
+                chunks=result["chunks"],
+                document_id=document_id,
+                metadata=result["metadata"]
+            )
+            vector_status = "indexed"
+        except Exception as e:
+            chunk_count = 0
+            vector_status = f"failed: {e}"
+            logger.error(
+                "Vector indexing failed for document %s; keeping extracted "
+                "document available through structural and graph paths.",
+                document_id,
+                exc_info=True,
+            )
 
         # ----------------------------------------------------------------
         # Step 3: Extract concepts + write provenance-rich graph
@@ -122,7 +137,8 @@ async def process_document_background(document_id: int, file_path: str):
         doc.processing_status = "completed"
         doc.doc_metadata = {
             **result["metadata"],
-            "structural_sections": section_tree.total_sections if 'section_tree' in dir() else 0,
+            "structural_sections": section_count,
+            "vector_status": vector_status,
             "concepts": concepts,
             "graph_counts": graph_counts,
         }

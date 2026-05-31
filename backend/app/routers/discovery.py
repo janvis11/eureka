@@ -659,12 +659,16 @@ async def get_graph_stats(db: Session = Depends(get_db)):
         graph_repo = await _get_graph_repo()
         if graph_repo:
             stats = await graph_repo.get_stats()
-            trending = await graph_repo.find_trending_concepts(days=3650, limit=10)
+            node_count = stats.get("entities", 0) + stats.get("documents", 0) + stats.get("claims", 0)
+            relationship_count = stats.get("relationships", 0)
+            trending = []
+            if stats.get("entities", 0) and relationship_count:
+                trending = await graph_repo.find_trending_concepts(days=3650, limit=10)
             return {
-                "nodes": stats.get("entities", 0) + stats.get("documents", 0) + stats.get("claims", 0),
-                "edges": stats.get("relationships", 0),
-                "density": 0.001 * stats.get("relationships", 0),
-                "communities": max(1, stats.get("documents", 0) // 3),
+                "nodes": node_count,
+                "edges": relationship_count,
+                "density": 0.001 * relationship_count,
+                "communities": max(1, stats.get("documents", 0) // 3) if node_count else 0,
                 "breakdown": {
                     "papers": stats.get("documents", 0),
                     "concepts": stats.get("entities", 0),
