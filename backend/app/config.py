@@ -9,7 +9,7 @@ class Settings(BaseSettings):
 
     # App
     APP_NAME: str = "Eureka AI"
-    DEBUG: bool = False
+    DEBUG: bool = True
 
     # Database
     DATABASE_URL: str = "sqlite:///./eureka.db"
@@ -24,32 +24,58 @@ class Settings(BaseSettings):
     # RAG Settings
     CHUNK_SIZE: int = 1000
     CHUNK_OVERLAP: int = 200
-    # Use the sentence-transformers HF repo name for local embeddings
-    EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"
+
+    # -----------------------------------------------------------------------
+    # Model Gateway (provider-agnostic)
+    # -----------------------------------------------------------------------
+    # Which provider to use: groq, openai, ollama, fake, auto
+    MODEL_PROVIDER: str = "auto"
+
+    # Generation model (provider-specific model name)
+    GENERATION_MODEL: str = "openai/gpt-oss-120b"
+
+    # Embedding model (used by OpenAI-compatible embedding endpoint)
+    EMBEDDING_MODEL: str = "text-embedding-3-small"
+
+    # Embedding dimension (must match the embedding model output)
+    EMBEDDING_DIM: int = 384
+
+    # Provider API keys (set whichever provider you use)
+    GROQ_API_KEY: Optional[str] = None
+    OPENAI_API_KEY: Optional[str] = None
+    ANTHROPIC_API_KEY: Optional[str] = None
+    GEMINI_API_KEY: Optional[str] = None
+
+    # OpenAI-compatible base URLs
+    OPENAI_BASE_URL: Optional[str] = None
+    EMBEDDING_BASE_URL: Optional[str] = None
+    OLLAMA_BASE_URL: str = "http://localhost:11434/v1"
+
+    # Neo4j Configuration
+    NEO4J_URI: str = "bolt://localhost:7687"
+    NEO4J_USER: str = "neo4j"
+    NEO4J_PASSWORD: str = "eureka_password_change_me"
+    NEO4J_DATABASE: str = "neo4j"
 
     # LLM Settings
-    GROQ_API_KEY: Optional[str] = None
-    LLM_MODEL: str = "llama-3.1-70b-versatile"
+    LLM_MODEL: str = "openai/gpt-oss-120b"  # Kept for backwards compat
     LLM_TEMPERATURE: float = 0.7
     LLM_MAX_TOKENS: int = 1000
-
-    # Hugging Face local models for cost-free tasks (embeddings/discovery/keywords)
-    # These are open-source, CPU-friendly models you can run locally.
-    DISCOVERY_MODEL: str = "google/flan-t5-small"
-    KEYWORD_MODEL: str = "google/flan-t5-small"
-    # Toggle to use local HF models for generation (discovery/keywords)
-    HF_USE_LOCAL_GENERATOR: bool = True
-    # Optional: HuggingFace API token for Inference API
-    HF_API_TOKEN: Optional[str] = None
 
     # Discovery Settings
     MAX_GAPS: int = 15
     MAX_HYPOTHESES_PER_RUN: int = 25
     TREND_WINDOW_DAYS: int = 365
-    
+
     # Security
-    SECRET_KEY: str
+    SECRET_KEY: str = "dev-secret-key-change-me"
     ALGORITHM: str = "HS256"
+
+    # Optional legacy local-HF settings. HuggingFace is not required in the
+    # production path; these exist only so older optional utilities can be
+    # disabled cleanly.
+    HF_USE_LOCAL_GENERATOR: bool = False
+    DISCOVERY_MODEL: str = "google/flan-t5-small"
 
     # CORS and Host restrictions
     ALLOWED_ORIGINS: str = "*"  # Comma-separated list of allowed origins
@@ -65,10 +91,15 @@ class Settings(BaseSettings):
         """Ensure SECRET_KEY is set and sufficiently random for production."""
         import os
         # Check if running in production (DEBUG=False)
-        debug_mode = os.environ.get("DEBUG", "false").lower() == "true"
+        debug_raw = os.environ.get("DEBUG", "true").lower()
+        production_like = debug_raw in {"false", "0", "no", "production", "prod"}
 
-        if not v or v == "your-secret-key-change-in-production":
-            if not debug_mode:
+        if not v or v in {
+            "your-secret-key-change-in-production",
+            "dev-secret-key-change-me",
+            "change-this-in-production",
+        }:
+            if production_like:
                 # In production, raise an error if SECRET_KEY is not properly set
                 raise ValueError(
                     "SECRET_KEY is not set or using default value. "
@@ -80,11 +111,33 @@ class Settings(BaseSettings):
             return secrets.token_urlsafe(32)
         return v
 
-    @field_validator("HF_API_TOKEN", "GROQ_API_KEY", mode="before")
+    @field_validator("DEBUG", mode="before")
+    @classmethod
+    def normalize_debug(cls, v):
+        """Accept common environment names accidentally supplied as DEBUG."""
+        if isinstance(v, str):
+            value = v.strip().lower()
+            if value in {"release", "production", "prod"}:
+                return False
+            if value in {"debug", "development", "dev"}:
+                return True
+        return v
+
+    @field_validator(
+        "GROQ_API_KEY",
+        "OPENAI_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "GEMINI_API_KEY",
+        "OPENAI_BASE_URL",
+        "EMBEDDING_BASE_URL",
+        mode="before",
+    )
     @classmethod
     def empty_str_to_none(cls, v):
-        """Convert empty strings to None for optional fields."""
-        if v is None or v == "":
+        """Convert blank optional env vars to None."""
+        if v is None:
+            return None
+        if isinstance(v, str) and not v.strip():
             return None
         return v
 

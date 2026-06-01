@@ -1,6 +1,9 @@
 """Simple in-memory LRU cache for embeddings."""
 from collections import OrderedDict
 from typing import List, Optional
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class EmbeddingCache:
@@ -25,4 +28,15 @@ class EmbeddingCache:
         return [self.get(k) for k in keys]
 
     def clear(self):
+        logger.info("Clearing embedding cache")
         self.store.clear()
+
+    def __len__(self) -> int:
+        return len(self.store)
+
+    def stats(self) -> dict:
+        return {
+            "cached_items": len(self.store),
+            "max_items": self.max_items,
+            "utilization": round(len(self.store) / max(self.max_items, 1) * 100, 1)
+        }

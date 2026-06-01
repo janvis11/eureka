@@ -1,10 +1,10 @@
 """
-Enhanced Discovery Engine using HuggingFace models for all discovery tasks.
+Enhanced Discovery Engine using provider-agnostic ModelGateway.
 
 Pipeline:
 1. Upload papers → Process → Store in RAG
 2. RAG Chat: Query papers using semantic search + LLM
-3. Discovery: Use HF models + multi-agent orchestration to analyze uploaded documents for:
+3. Discovery: Use ModelGateway + multi-agent orchestration to analyze uploaded documents for:
    - Research gaps (and ranked gaps)
    - Hypothesis generation + validity checking
    - Trend detection
@@ -16,6 +16,7 @@ Pipeline:
 
 from typing import List, Dict, Any, Optional
 from app.config import get_settings
+from app.services.model_gateway.base import ChatMessage, GenerationRequest
 from datetime import datetime
 import logging
 import json
@@ -29,47 +30,38 @@ logger = logging.getLogger(__name__)
 
 
 class DiscoveryEngine:
-    """Enhanced DiscoveryEngine using HuggingFace models + multi-agent orchestration."""
+    """Enhanced DiscoveryEngine using ModelGateway + multi-agent orchestration."""
 
-    def __init__(self, rag_engine, keyword_extractor, hf_client=None):
+    def __init__(self, rag_engine, keyword_extractor, gateway=None):
         self.settings = get_settings()
         self.rag_engine = rag_engine
         self.keyword_extractor = keyword_extractor
 
-        # HF client shared instance
-        from app.services.shared import hf_client as shared_hf_client
-        self.hf_client = hf_client or shared_hf_client
+        # Gateway shared instance
+        if gateway is not None:
+            self.gateway = gateway
+        else:
+            from app.services.shared import get_gateway
+            self.gateway = get_gateway()
 
         # Initialize multi-agent orchestrator + new analysis services
-        self.agent_orchestrator = ScienceAgentOrchestrator(self.hf_client, self.keyword_extractor)
+        self.agent_orchestrator = ScienceAgentOrchestrator(self.gateway, self.keyword_extractor)
         self.contradiction_graph_builder = ContradictionGraphBuilder()
-        self.bridge_discovery = HiddenBridgeDiscovery(self.hf_client)
-
-        # Groq fallback (optional)
-        try:
-            from groq import Groq
-            self.groq_client = Groq(api_key=self.settings.GROQ_API_KEY) if self.settings.GROQ_API_KEY else None
-        except Exception:
-            self.groq_client = None
+        self.bridge_discovery = HiddenBridgeDiscovery(self.gateway)
 
     # -----------------------------------------------------------------------
-    # CORE GENERATION (HF preferred, Groq fallback)
+    # CORE GENERATION (via gateway)
     # -----------------------------------------------------------------------
-    def _generate(self, prompt: str, max_length: int = 512, temperature: float = 0.7) -> str:
+    async def _generate(self, prompt: str, max_tokens: int = 512, temperature: float = 0.7) -> str:
         try:
-            if self.hf_client and hasattr(self.hf_client, "generate"):
-                return self.hf_client.generate(prompt, max_length=max_length)
-            elif self.groq_client:
-                response = self.groq_client.chat.completions.create(
-                    model=self.settings.LLM_MODEL,
-                    messages=[{"role": "user", "content": prompt}],
+            result = await self.gateway.generate(
+                GenerationRequest(
+                    messages=[ChatMessage(role="user", content=prompt)],
                     temperature=temperature,
-                    max_tokens=max_length
+                    max_tokens=max_tokens,
                 )
-                return response.choices[0].message.content
-            else:
-                logger.warning("No LLM generator available.")
-                return ""
+            )
+            return result.text
         except Exception as e:
             logger.error(f"Generation error: {e}")
             return ""
@@ -88,7 +80,7 @@ class DiscoveryEngine:
     # EXISTING FEATURES (KEEP YOUR ORIGINAL LOGIC BUT CLEANER)
     # -----------------------------------------------------------------------
     async def analyze_research_gaps(self, documents_texts: List[str], top_k: int = 15) -> List[Dict[str, Any]]:
-        """Identify research gaps using HF generation + fallback keyword-based."""
+        """Identify research gaps using LLM generation + fallback keyword-based."""
         if not documents_texts:
             return []
 
@@ -114,12 +106,12 @@ Identify 5-10 research gaps. Output JSON:
   ]
 }}
 """
-            response = self._generate(prompt, max_length=1024)
+            response = await self._generate(prompt, max_tokens=1024)
             parsed = self._extract_json(response)
             gaps = parsed.get("gaps", [])
 
             if not gaps:
-                logger.info("HF gaps failed → fallback keyword gap detection")
+                logger.info("LLM gaps failed → fallback keyword gap detection")
                 gap_analysis = await self.keyword_extractor.detect_gaps(documents_texts)
                 gaps = [
                     {
@@ -171,21 +163,42 @@ Output JSON:
 {{
   "hypothesis": "...",
   "rationale": "...",
+  "evidence": ["supporting evidence item"],
+  "counter_evidence": ["missing evidence or possible contradiction"],
   "methodology": "...",
+  "validation_plan": "Concrete validation plan",
   "expected_impact": "...",
+  "novelty": "What makes this new",
+  "feasibility": "Why this can be tested",
+  "falsifiability": "What result would disprove it",
+  "novelty_score": 0.0-1.0,
+  "feasibility_score": 0.0-1.0,
+  "falsifiability_score": 0.0-1.0,
   "confidence": 0.0-1.0
 }}
 """
-            response = self._generate(prompt, max_length=700)
+            response = await self._generate(prompt, max_tokens=700)
             parsed = self._extract_json(response)
 
             if parsed.get("hypothesis"):
+                novelty_score = float(parsed.get("novelty_score", parsed.get("confidence", 0.65)))
+                feasibility_score = float(parsed.get("feasibility_score", 0.7))
+                falsifiability_score = float(parsed.get("falsifiability_score", 0.8))
                 hypotheses.append({
                     "text": parsed.get("hypothesis", ""),
                     "rationale": parsed.get("rationale", ""),
+                    "evidence": parsed.get("evidence", []),
+                    "counter_evidence": parsed.get("counter_evidence", []),
                     "methodology": parsed.get("methodology", ""),
+                    "validation_plan": parsed.get("validation_plan", parsed.get("methodology", "")),
                     "expected_impact": parsed.get("expected_impact", ""),
-                    "confidence": float(parsed.get("confidence", 0.65)),
+                    "novelty": parsed.get("novelty", ""),
+                    "feasibility": parsed.get("feasibility", ""),
+                    "falsifiability": parsed.get("falsifiability", ""),
+                    "novelty_score": novelty_score,
+                    "feasibility_score": feasibility_score,
+                    "falsifiability_score": falsifiability_score,
+                    "confidence": float(parsed.get("confidence", (novelty_score + feasibility_score + falsifiability_score) / 3)),
                     "gap_reference": gap.get("title", ""),
                     "status": "proposed"
                 })
@@ -216,7 +229,7 @@ Analyze these papers and extract trends. Output JSON:
 Papers:
 {combined_text}
 """
-        response = self._generate(prompt, max_length=1024)
+        response = await self._generate(prompt, max_tokens=1024)
         parsed = self._extract_json(response)
         trends = parsed.get("trends", [])
 
@@ -234,8 +247,7 @@ Papers:
 
     async def detect_contradictions(self, documents_texts: List[str], limit: int = 10) -> List[Dict[str, Any]]:
         """
-        Your prompt-based contradiction detection kept for compatibility,
-        but now the real contradiction graph will come from NLI.
+        Prompt-based contradiction detection kept for compatibility.
         """
         if not documents_texts or len(documents_texts) < 2:
             return []
@@ -264,7 +276,7 @@ JSON:
   "impact": "high|medium|low"
 }}
 """
-                response = self._generate(prompt, max_length=512)
+                response = await self._generate(prompt, max_tokens=512)
                 parsed = self._extract_json(response)
 
                 if parsed.get("has_contradiction"):
@@ -284,7 +296,7 @@ JSON:
         return contradictions
 
     # -----------------------------------------------------------------------
-    # ✅ NEW FEATURES: GAP RANKING + VALIDATION + EXPERIMENTS + GRAPH + BRIDGES + REPORT
+    # FULL DISCOVERY PIPELINE
     # -----------------------------------------------------------------------
     async def run_full_discovery(self, documents_texts: List[str]) -> Dict[str, Any]:
         """
@@ -329,7 +341,7 @@ JSON:
             # Step 5: contradictions (prompt-based)
             contradictions = await self.detect_contradictions(documents_texts, limit=10)
 
-            # Step 6: contradiction graph (REAL NLI model)
+            # Step 6: contradiction graph (NLI model)
             claims = []
             for doc in documents_texts[:4]:
                 summary = self.agent_orchestrator.summarizer_agent(doc)
@@ -338,7 +350,7 @@ JSON:
             contradiction_graph = self.contradiction_graph_builder.build_graph(claims[:12]) if claims else {"nodes": [], "edges": []}
 
             # Step 7: hidden bridge discovery
-            bridges = self.bridge_discovery.discover_bridges(documents_texts[:8], top_k=8) if documents_texts else []
+            bridges = await self.bridge_discovery.discover_bridges(documents_texts[:8], top_k=8) if documents_texts else []
 
             # Step 8: trends
             trends = await self.detect_trends(documents_texts)

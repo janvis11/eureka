@@ -9,20 +9,23 @@ This module defines:
 - Experiment Designer Agent
 - Report Agent
 
-Each agent uses HuggingFace generation + embeddings.
+Each agent uses the provider-agnostic ModelGateway for generation.
 """
 
 from typing import Dict, Any, List
 import json
 import re
+import asyncio
 import logging
+
+from app.services.model_gateway.base import ChatMessage, GenerationRequest
 
 logger = logging.getLogger(__name__)
 
 
 class ScienceAgentOrchestrator:
-    def __init__(self, hf_client, keyword_extractor):
-        self.hf_client = hf_client
+    def __init__(self, gateway, keyword_extractor):
+        self.gateway = gateway
         self.keyword_extractor = keyword_extractor
 
     def _json_extract(self, text: str) -> dict:
@@ -34,6 +37,37 @@ class ScienceAgentOrchestrator:
         except Exception:
             return {}
         return {}
+
+    async def _generate(self, prompt: str, max_tokens: int = 700) -> str:
+        """Generate text via gateway."""
+        try:
+            result = await self.gateway.generate(
+                GenerationRequest(
+                    messages=[ChatMessage(role="user", content=prompt)],
+                    temperature=0.3,
+                    max_tokens=max_tokens,
+                )
+            )
+            return result.text
+        except Exception as e:
+            logger.error(f"Generation error in agent: {e}")
+            return ""
+
+    def _generate_sync(self, prompt: str, max_tokens: int = 700) -> str:
+        """Synchronous wrapper for _generate (used in sync contexts)."""
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # We're inside an async context — create a task
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as pool:
+                    future = pool.submit(asyncio.run, self._generate(prompt, max_tokens))
+                    return future.result(timeout=60)
+            else:
+                return loop.run_until_complete(self._generate(prompt, max_tokens))
+        except Exception as e:
+            logger.error(f"Sync generation error: {e}")
+            return ""
 
     def summarizer_agent(self, doc_text: str) -> Dict[str, Any]:
         prompt = f"""
@@ -52,7 +86,7 @@ Return JSON:
  "future_work": ["...","..."]
 }}
 """
-        response = self.hf_client.generate(prompt, max_length=700)
+        response = self._generate_sync(prompt, max_tokens=700)
         return self._json_extract(response)
 
     def gap_ranking_agent(self, gaps: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -81,7 +115,7 @@ Return JSON:
   ]
 }}
 """
-        response = self.hf_client.generate(prompt, max_length=800)
+        response = self._generate_sync(prompt, max_tokens=800)
         parsed = self._json_extract(response)
         return parsed.get("ranked_gaps", gaps)
 
@@ -113,7 +147,7 @@ Return JSON:
   "overall_score": 0.0-1.0
 }}
 """
-        response = self.hf_client.generate(prompt, max_length=700)
+        response = self._generate_sync(prompt, max_tokens=700)
         return self._json_extract(response)
 
     def experiment_designer_agent(self, hypothesis: str) -> Dict[str, Any]:
@@ -137,7 +171,7 @@ Return JSON:
   ]
 }}
 """
-        response = self.hf_client.generate(prompt, max_length=700)
+        response = self._generate_sync(prompt, max_tokens=700)
         parsed = self._json_extract(response)
         return parsed
 
@@ -159,4 +193,4 @@ Write as a structured report:
 
 Write cleanly and concisely.
 """
-        return self.hf_client.generate(prompt, max_length=1200)
+        return self._generate_sync(prompt, max_tokens=1200)

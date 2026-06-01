@@ -219,12 +219,13 @@ async def health_check():
     try:
         from app.services.graph.neo4j_client import get_neo4j_client
         neo4j = get_neo4j_client()
-        if neo4j.is_connected:
-            stats = await neo4j.execute_query("MATCH (n) RETURN count(n) AS count")
-            health_status["checks"]["knowledge_graph"] = "healthy"
-            health_status["graph_nodes"] = stats[0].get("count", 0) if stats else 0
-        else:
-            health_status["checks"]["knowledge_graph"] = "disconnected"
+        if not neo4j.is_connected:
+            await neo4j.connect()
+            await neo4j.initialize_schema()
+
+        stats = await neo4j.execute_query("MATCH (n) RETURN count(n) AS count")
+        health_status["checks"]["knowledge_graph"] = "healthy"
+        health_status["graph_nodes"] = stats[0].get("count", 0) if stats else 0
     except Exception as e:
         health_status["checks"]["knowledge_graph"] = "unhealthy"
         logger.warning(f"Neo4j health check failed (may not be running): {e}")

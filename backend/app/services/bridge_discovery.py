@@ -1,16 +1,23 @@
 from typing import List, Dict, Any
 import numpy as np
+import asyncio
+
+from app.services.model_gateway.base import EmbeddingRequest
+
 
 class HiddenBridgeDiscovery:
     """
     Finds hidden connections between papers that are semantically similar but not citation-linked.
     """
 
-    def __init__(self, hf_client):
-        self.hf_client = hf_client
+    def __init__(self, gateway):
+        self.gateway = gateway
 
-    def discover_bridges(self, docs: List[str], top_k=5) -> List[Dict[str, Any]]:
-        embeddings = np.array(self.hf_client.embed_texts([d[:2000] for d in docs]))
+    async def discover_bridges(self, docs: List[str], top_k=5) -> List[Dict[str, Any]]:
+        result = await self.gateway.embed(
+            EmbeddingRequest(texts=[d[:2000] for d in docs], purpose="document")
+        )
+        embeddings = np.array(result.embeddings)
         bridges = []
 
         similarity = embeddings @ embeddings.T
