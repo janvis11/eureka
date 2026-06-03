@@ -5,6 +5,9 @@ coverage/
 *.log
 build/
 dist/
+*.tsbuildinfo
+vite.config.js
+vite.config.d.ts
 *.local
 .env
 .env.local
