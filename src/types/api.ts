@@ -59,11 +59,47 @@ export type GraphStats = {
   topEntities: string[];
   breakdown?: {
     papers: number;
+    chunks?: number;
     concepts: number;
     methods?: number;
     claims?: number;
     hypotheses?: number;
   };
+};
+
+export type GraphNode = {
+  id: string;
+  label: string;
+  kind: string;
+  labels: string[];
+  key?: string;
+  name?: string;
+  title?: string;
+  text?: string;
+  sourceType?: string;
+  chunkIndex?: number;
+  tokenCount?: number;
+  claimType?: string;
+  polarity?: string;
+  confidence?: number;
+};
+
+export type GraphEdge = {
+  id: string;
+  source: string;
+  target: string;
+  type: string;
+  predicate?: string;
+  confidence?: number;
+  evidence?: string;
+  chunkId?: string;
+};
+
+export type GraphOverview = {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+  relationshipTypes: string[];
+  limit: number;
 };
 
 export type GraphPathRequest = {

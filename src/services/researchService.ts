@@ -2,6 +2,9 @@ import apiClient from './apiClient';
 import {
   ChatMessage,
   DiscoveryInsight,
+  GraphEdge,
+  GraphNode,
+  GraphOverview,
   GraphPathRequest,
   GraphStats,
   Hypothesis,
@@ -132,6 +135,52 @@ export const fetchGraphStats = async (): Promise<GraphStats> => {
     communities: data.communities ?? 0,
     topEntities: data.top_entities ?? [],
     breakdown: data.breakdown,
+  };
+};
+
+export const fetchGraphOverview = async (options?: {
+  limit?: number;
+  relationshipTypes?: string[];
+}): Promise<GraphOverview> => {
+  const params = new URLSearchParams();
+  params.set('limit', String(options?.limit ?? 25));
+  if (options?.relationshipTypes?.length) {
+    params.set('relationship_types', options.relationshipTypes.join(','));
+  }
+
+  const { data } = await apiClient.get(`/graph/overview?${params.toString()}`);
+  const nodes = Array.isArray(data.nodes) ? data.nodes : [];
+  const edges = Array.isArray(data.edges) ? data.edges : [];
+
+  return {
+    nodes: nodes.map((node: any): GraphNode => ({
+      id: String(node.id ?? ''),
+      label: String(node.label ?? node.name ?? node.title ?? node.key ?? node.id ?? 'Node'),
+      kind: String(node.kind ?? node.labels?.[0] ?? 'Node'),
+      labels: Array.isArray(node.labels) ? node.labels.map(String) : [],
+      key: node.key,
+      name: node.name,
+      title: node.title,
+      text: node.text,
+      sourceType: node.source_type,
+      chunkIndex: node.chunk_index === undefined ? undefined : Number(node.chunk_index),
+      tokenCount: node.token_count === undefined ? undefined : Number(node.token_count),
+      claimType: node.claim_type,
+      polarity: node.polarity,
+      confidence: node.confidence === undefined ? undefined : Number(node.confidence),
+    })).filter((node: GraphNode) => node.id),
+    edges: edges.map((edge: any): GraphEdge => ({
+      id: String(edge.id ?? `${edge.source}-${edge.type}-${edge.target}`),
+      source: String(edge.source ?? ''),
+      target: String(edge.target ?? ''),
+      type: String(edge.type ?? 'RELATED'),
+      predicate: edge.predicate,
+      confidence: edge.confidence === undefined ? undefined : Number(edge.confidence),
+      evidence: edge.evidence,
+      chunkId: edge.chunk_id,
+    })).filter((edge: GraphEdge) => edge.source && edge.target),
+    relationshipTypes: Array.isArray(data.relationship_types) ? data.relationship_types.map(String) : [],
+    limit: Number(data.limit ?? options?.limit ?? 25),
   };
 };
 
