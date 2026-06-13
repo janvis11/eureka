@@ -1,6 +1,6 @@
 """Neo4j Knowledge Graph API endpoints."""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import List, Optional
 from pydantic import BaseModel
 
@@ -43,6 +43,30 @@ async def get_graph_stats(repo: GraphRepository = Depends(get_graph_repo)):
         return stats
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Graph stats failed: {e}")
+
+
+@router.get("/overview")
+async def get_graph_overview(
+    limit: int = Query(25, ge=1, le=100),
+    relationship_types: Optional[str] = Query(
+        None,
+        description="Comma-separated relationship types, for example CONTAINS,MENTIONS",
+    ),
+    repo: GraphRepository = Depends(get_graph_repo),
+):
+    """Get a sampled graph overview for UI visualization."""
+    try:
+        selected_types = [
+            value.strip().upper()
+            for value in (relationship_types or "").split(",")
+            if value.strip()
+        ]
+        return await repo.get_overview(
+            limit=limit,
+            relationship_types=selected_types,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Graph overview failed: {e}")
 
 
 @router.get("/entities/{entity_key}/neighborhood", response_model=EntityNeighborhoodResponse)

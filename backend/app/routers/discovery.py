@@ -659,7 +659,13 @@ async def get_graph_stats(db: Session = Depends(get_db)):
         graph_repo = await _get_graph_repo()
         if graph_repo:
             stats = await graph_repo.get_stats()
-            node_count = stats.get("entities", 0) + stats.get("documents", 0) + stats.get("claims", 0)
+            node_count = (
+                stats.get("documents", 0)
+                + stats.get("chunks", 0)
+                + stats.get("entities", 0)
+                + stats.get("claims", 0)
+                + stats.get("hypotheses", 0)
+            )
             relationship_count = stats.get("relationships", 0)
             trending = []
             if stats.get("entities", 0) and relationship_count:
@@ -671,6 +677,7 @@ async def get_graph_stats(db: Session = Depends(get_db)):
                 "communities": max(1, stats.get("documents", 0) // 3) if node_count else 0,
                 "breakdown": {
                     "papers": stats.get("documents", 0),
+                    "chunks": stats.get("chunks", 0),
                     "concepts": stats.get("entities", 0),
                     "claims": stats.get("claims", 0),
                     "hypotheses": stats.get("hypotheses", 0),
