@@ -10,6 +10,8 @@ logger = logging.getLogger(__name__)
 
 settings = get_settings()
 DATABASE_URL = settings.DATABASE_URL or "sqlite:///./eureka.db"
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
 # Create engine with production-ready connection pooling
 connect_args = {}
@@ -26,7 +28,7 @@ if "sqlite" in DATABASE_URL:
     engine_kwargs.pop("pool_pre_ping", None)
     engine_kwargs.pop("pool_recycle", None)
 elif "postgresql" in DATABASE_URL:
-    connect_args.update({
+    engine_kwargs.update({
         "pool_size": 20,
         "max_overflow": 10,
     })
