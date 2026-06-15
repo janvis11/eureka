@@ -18,6 +18,7 @@ from app.services.graph.queries import (
     LINK_CLAIM_TO_ENTITIES,
     LINK_CHUNK_TO_ENTITIES,
     GET_NEIGHBORHOOD,
+    GET_GRAPH_OVERVIEW,
     FIND_BRIDGE_PATHS,
     FIND_GAPS,
     FIND_CONTRADICTIONS,
@@ -224,6 +225,68 @@ class GraphRepository:
             nodes=nodes,
             edges=[e for e in edges if e["start"] and e["end"]],
         )
+
+    async def get_overview(
+        self,
+        limit: int = 50,
+        relationship_types: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        """Get a sampled graph for UI visualization."""
+        normalized_types = [
+            rel_type.strip().upper()
+            for rel_type in (relationship_types or [])
+            if rel_type and rel_type.strip()
+        ]
+        bounded_limit = max(1, min(int(limit), 100))
+
+        results = await self.client.execute_query(
+            GET_GRAPH_OVERVIEW,
+            {
+                "limit": bounded_limit,
+                "relationship_types": normalized_types,
+            },
+        )
+
+        if not results:
+            return {
+                "nodes": [],
+                "edges": [],
+                "relationship_types": normalized_types,
+                "limit": bounded_limit,
+            }
+
+        row = results[0]
+        nodes_by_id: Dict[str, Dict[str, Any]] = {}
+        for node in row.get("nodes", []):
+            if not node:
+                continue
+            node_id = str(node.get("id", "")).strip()
+            if not node_id:
+                continue
+            nodes_by_id[node_id] = {
+                key: value
+                for key, value in dict(node).items()
+                if value is not None and value != ""
+            }
+
+        edges = []
+        for edge in row.get("edges", []):
+            if not edge:
+                continue
+            edge_data = {
+                key: value
+                for key, value in dict(edge).items()
+                if value is not None and value != ""
+            }
+            if edge_data.get("source") and edge_data.get("target"):
+                edges.append(edge_data)
+
+        return {
+            "nodes": list(nodes_by_id.values()),
+            "edges": edges,
+            "relationship_types": normalized_types,
+            "limit": bounded_limit,
+        }
 
     async def find_bridge_paths(
         self, source_key: str, target_key: str, max_hops: int = 4

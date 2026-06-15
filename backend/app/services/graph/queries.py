@@ -54,8 +54,8 @@ SET c.text = $text,
     c.source_quote = $source_quote
 WITH c
 OPTIONAL MATCH (chunk:Chunk {id: $chunk_id})
-FOREACH (ch IN CASE WHEN chunk IS NOT NULL THEN [1] ELSE [] END |
-    MERGE (ch)-[:ASSERTS]->(c)
+FOREACH (_ IN CASE WHEN chunk IS NOT NULL THEN [1] ELSE [] END |
+    MERGE (chunk)-[:ASSERTS]->(c)
 )
 RETURN c.id
 """
@@ -89,7 +89,7 @@ SET r.evidence = $evidence,
     r.source_quote = $source_quote,
     r.updated_at = datetime(),
     r.seen_count = coalesce(r.seen_count, 0) + 1
-RETURN id(r) AS relationship_id
+RETURN elementId(r) AS relationship_id
 """
 
 # Get entity neighborhood
@@ -114,6 +114,69 @@ CALL {
     }) AS edges
 }
 RETURN e AS center, nodes, edges
+"""
+
+# Get a general graph overview for UI visualization
+GET_GRAPH_OVERVIEW = """
+MATCH (a)-[r]->(b)
+WHERE size($relationship_types) = 0 OR type(r) IN $relationship_types
+WITH a, r, b,
+     CASE type(r)
+        WHEN 'CONTAINS' THEN 0
+        WHEN 'MENTIONS' THEN 1
+        WHEN 'ASSERTS' THEN 2
+        WHEN 'ABOUT' THEN 3
+        WHEN 'RELATED' THEN 4
+        ELSE 5
+     END AS relation_priority
+ORDER BY relation_priority ASC,
+         toString(coalesce(a.title, a.name, a.key, a.id, elementId(a))) ASC
+LIMIT $limit
+WITH collect(DISTINCT {
+        id: toString(coalesce(a.key, a.id, elementId(a))),
+        label: toString(coalesce(a.name, a.title, a.key, a.id, left(coalesce(a.text, a.description, ''), 80), elementId(a))),
+        kind: head(labels(a)),
+        labels: labels(a),
+        key: a.key,
+        name: a.name,
+        title: a.title,
+        text: left(coalesce(a.text, a.source_quote, a.description, ''), 280),
+        source_type: a.source_type,
+        chunk_index: a.chunk_index,
+        token_count: a.token_count,
+        claim_type: a.claim_type,
+        polarity: a.polarity,
+        confidence: a.confidence
+     }) +
+     collect(DISTINCT {
+        id: toString(coalesce(b.key, b.id, elementId(b))),
+        label: toString(coalesce(b.name, b.title, b.key, b.id, left(coalesce(b.text, b.description, ''), 80), elementId(b))),
+        kind: head(labels(b)),
+        labels: labels(b),
+        key: b.key,
+        name: b.name,
+        title: b.title,
+        text: left(coalesce(b.text, b.source_quote, b.description, ''), 280),
+        source_type: b.source_type,
+        chunk_index: b.chunk_index,
+        token_count: b.token_count,
+        claim_type: b.claim_type,
+        polarity: b.polarity,
+        confidence: b.confidence
+     }) AS raw_nodes,
+     collect(DISTINCT {
+        id: elementId(r),
+        source: toString(coalesce(a.key, a.id, elementId(a))),
+        target: toString(coalesce(b.key, b.id, elementId(b))),
+        type: type(r),
+        predicate: r.predicate,
+        confidence: r.confidence,
+        evidence: left(coalesce(r.evidence, r.source_quote, ''), 280),
+        chunk_id: r.chunk_id
+     }) AS edges
+UNWIND raw_nodes AS node
+WITH collect(DISTINCT node) AS nodes, edges
+RETURN nodes, edges
 """
 
 # Find bridge paths between two entities
