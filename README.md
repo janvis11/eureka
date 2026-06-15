@@ -107,8 +107,10 @@ backend:
 - python
 - sqlalchemy
 - sqlite for local development
+- Render Postgres for hosted deployment
 - faiss for vector search
 - neo4j for graph storage
 - groq for llm generation
 - openai-compatible embeddings when available
 - local lexical embeddings as fallback
+
