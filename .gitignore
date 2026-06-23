@@ -42,3 +42,6 @@ data/uploads/
 
 logs/
 *.log
+
+backend/eureka.db-shm
+backend/eureka.db-wal
