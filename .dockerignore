@@ -43,6 +43,9 @@ logs/
 dist/
 build/
 
+# Backend (not needed for frontend build)
+backend/
+
 # Environment
 .env
 .env.local
