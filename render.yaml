@@ -38,7 +38,7 @@ services:
         value: "*"
 
   - type: web
-    name: eureka-ai-web
+    name: eureka-ai
     runtime: static
     buildCommand: npm ci && npm run build
     staticPublishPath: ./dist
