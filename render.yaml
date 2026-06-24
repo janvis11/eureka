@@ -1,0 +1,54 @@
+services:
+  - type: web
+    name: eureka-ai-api
+    runtime: python
+    rootDir: backend
+    plan: free
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: DEBUG
+        value: false
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
+      - key: CHROMADB_PATH
+        value: /tmp/eureka/chromadb
+      - key: UPLOAD_DIR
+        value: /tmp/eureka/uploads
+      - key: MODEL_PROVIDER
+        value: auto
+      - key: GENERATION_MODEL
+        value: openai/gpt-oss-120b
+      - key: EMBEDDING_MODEL
+        value: text-embedding-3-small
+      - key: EMBEDDING_DIM
+        value: 384
+      - key: GROQ_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: ALLOWED_ORIGINS
+        value: "*"
+      - key: ALLOWED_HOSTS
+        value: "*"
+
+  - type: web
+    name: eureka-ai-web
+    runtime: static
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    envVars:
+      - key: NODE_VERSION
+        value: 20.19.0
+      - key: VITE_API_BASE_URL
+        value: https://eureka-ai-api.onrender.com/api
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+

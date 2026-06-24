@@ -8,7 +8,7 @@ services:
     environment:
       POSTGRES_DB: eureka_db
       POSTGRES_USER: eureka_user
-      POSTGRES_PASSWORD: eureka_password_change_me
+      POSTGRES_PASSWORD: eureka_password
     ports:
       - "5432:5432"
     volumes:
