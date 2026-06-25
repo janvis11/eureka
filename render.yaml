@@ -32,6 +32,14 @@ services:
         sync: false
       - key: OPENAI_API_KEY
         sync: false
+      - key: NEO4J_URI
+        sync: false
+      - key: NEO4J_USER
+        value: neo4j
+      - key: NEO4J_PASSWORD
+        sync: false
+      - key: NEO4J_DATABASE
+        value: neo4j
       - key: ALLOWED_ORIGINS
         value: "*"
       - key: ALLOWED_HOSTS
