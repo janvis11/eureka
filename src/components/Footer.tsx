@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 
 const Footer = () => {
-  const currentYear = 2025;
+  const currentYear = 2026;
   
   const navLinks = [
     { name: 'Chat', path: '/chat' },
@@ -39,7 +39,7 @@ const Footer = () => {
             <ul className="space-y-2 text-sm text-gray-400">
               <li>
                 <a 
-                  href="https://github.com" 
+                  href="https://github.com/janvis11/eureka" 
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="hover:text-white transition-colors"
@@ -49,7 +49,7 @@ const Footer = () => {
               </li>
               <li>
                 <a 
-                  href="https://docs.eureka.ai" 
+                  href="#" 
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="hover:text-white transition-colors"
@@ -59,7 +59,7 @@ const Footer = () => {
               </li>
               <li>
                 <a 
-                  href="mailto:contact@eureka.ai" 
+                  href="#" 
                   className="hover:text-white transition-colors"
                 >
                   Contact
