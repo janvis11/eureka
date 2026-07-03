@@ -35,7 +35,7 @@ services:
       - key: NEO4J_URI
         sync: false
       - key: NEO4J_USER
-        value: neo4j
+        sync: false
       - key: NEO4J_PASSWORD
         sync: false
       - key: NEO4J_DATABASE
