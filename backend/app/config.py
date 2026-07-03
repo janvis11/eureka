@@ -2,6 +2,7 @@ from pydantic_settings import BaseSettings
 from functools import lru_cache
 from typing import Optional
 from pydantic import field_validator
+from urllib.parse import urlparse
 
 
 class Settings(BaseSettings):
@@ -139,6 +140,44 @@ class Settings(BaseSettings):
             return None
         if isinstance(v, str) and not v.strip():
             return None
+        return v
+
+    @field_validator("NEO4J_URI", mode="before")
+    @classmethod
+    def normalize_neo4j_uri(cls, v):
+        """Normalize Neo4j URI and make Aura URIs secure by default."""
+        if v is None:
+            return v
+        if not isinstance(v, str):
+            return v
+
+        cleaned = v.strip().strip('"').strip("'")
+        if not cleaned:
+            return "bolt://localhost:7687"
+
+        parsed = urlparse(cleaned)
+        host = (parsed.hostname or "").lower()
+        if host.endswith(".databases.neo4j.io") and parsed.scheme in {"bolt", "neo4j"}:
+            secure_scheme = "neo4j+s"
+            netloc = parsed.netloc
+            if "@" in netloc:
+                auth, host_part = netloc.rsplit("@", 1)
+                host_part = host_part.split(":", 1)[0]
+                netloc = f"{auth}@{host_part}"
+            else:
+                netloc = host
+            return f"{secure_scheme}://{netloc}"
+
+        return cleaned
+
+    @field_validator("NEO4J_USER", "NEO4J_PASSWORD", "NEO4J_DATABASE", mode="before")
+    @classmethod
+    def normalize_neo4j_strings(cls, v):
+        """Trim accidental spaces/quotes in Neo4j env vars."""
+        if v is None:
+            return v
+        if isinstance(v, str):
+            return v.strip().strip('"').strip("'")
         return v
 
     class Config:
