@@ -55,8 +55,15 @@ class Neo4jClient:
                 await self._driver.verify_connectivity()
                 logger.info(f"Connected to Neo4j at {self.uri}")
             except Exception as e:
-                logger.error(f"Failed to connect to Neo4j: {e}")
-                raise
+                message = str(e)
+                hint = ""
+                if "DNS resolve" in message or "Name or service not known" in message:
+                    hint = (
+                        " Check NEO4J_URI host and scheme. Aura usually requires "
+                        "neo4j+s://<instance>.databases.neo4j.io"
+                    )
+                logger.error(f"Failed to connect to Neo4j at {self.uri}: {message}.{hint}")
+                raise RuntimeError(f"Failed to connect Neo4j ({self.uri}): {message}.{hint}") from e
 
     async def disconnect(self) -> None:
         """Close connection to Neo4j."""
