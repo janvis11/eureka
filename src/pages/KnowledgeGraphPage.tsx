@@ -618,6 +618,7 @@ const KnowledgeGraphPage = () => {
           {graphError && (
             <div className="mb-5 border border-red-400/40 bg-red-500/10 p-4 text-sm text-red-200">
               <p className="mb-3">Failed to load Neo4j graph data.</p>
+              <p className="mb-3 break-all text-xs text-red-200/85">{graphError}</p>
               <button
                 type="button"
                 className="border border-red-200/40 px-4 py-2 text-xs uppercase tracking-[0.16em]"

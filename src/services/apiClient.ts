@@ -10,6 +10,11 @@ const apiClient = axios.create({
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
+    const detail = error?.response?.data?.detail;
+    if (typeof detail === 'string' && detail.trim()) {
+      error.message = detail;
+    }
+
     if (import.meta.env.DEV) {
       console.warn('[Eureka API]', error.message);
     }
