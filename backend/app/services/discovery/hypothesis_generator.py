@@ -10,7 +10,7 @@ from app.services.model_gateway import (
     GenerationRequest,
     create_gateway,
 )
-from app.services.discovery.scoring import score_hypothesis
+from app.services.discovery.heuristic_priors import score_hypothesis
 
 logger = logging.getLogger(__name__)
 

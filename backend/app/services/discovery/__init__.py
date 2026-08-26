@@ -18,8 +18,8 @@ _EXPORTS = {
     "TrendRadar": "app.services.discovery.trend_radar",
     "ReportBuilder": "app.services.discovery.report_builder",
     "DiscoveryEngine": "app.services.discovery.engine",
-    "score_hypothesis": "app.services.discovery.scoring",
-    "rank_hypotheses": "app.services.discovery.scoring",
+    "score_hypothesis": "app.services.discovery.heuristic_priors",
+    "rank_hypotheses": "app.services.discovery.heuristic_priors",
 }
 
 __all__ = list(_EXPORTS)

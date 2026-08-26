@@ -14,6 +14,7 @@ from app.services.model_gateway.base import (
     EmbeddingRequest,
     GenerationRequest,
 )
+from app.services.retrieval.confidence import compute_confidence
 import logging
 
 logger = logging.getLogger(__name__)
@@ -252,12 +253,44 @@ class RAGEngine:
         context: List[Dict[str, Any]],
         max_tokens: int = None
     ) -> Dict[str, Any]:
-        """Generate answer using LLM with retrieved context."""
+        """Generate answer using LLM with retrieved context.
+
+        Abstains instead of calling the LLM when retrieval confidence is
+        below settings.ABSTENTION_CONFIDENCE_THRESHOLD — a weak retrieval
+        can't produce a trustworthy answer no matter how fluent the LLM
+        makes it sound, so the gate runs before generation, not after.
+        """
         try:
             if not context:
                 return {
                     "answer": "No relevant information found in the uploaded documents.",
-                    "confidence": 0.0
+                    "confidence": 0.0,
+                    "abstained": True,
+                    "reason": "no_evidence_retrieved",
+                }
+
+            confidence_result = compute_confidence(
+                context, threshold=self.settings.ABSTENTION_CONFIDENCE_THRESHOLD
+            )
+            if not confidence_result.should_answer:
+                return {
+                    "answer": (
+                        "I don't have enough confident evidence to answer this. "
+                        + (confidence_result.what_would_help or "")
+                    ),
+                    "confidence": round(confidence_result.score, 2),
+                    "abstained": True,
+                    "reason": confidence_result.reason,
+                    "confidence_signals": confidence_result.signals,
+                    "closest_evidence": [
+                        {
+                            "text": c.get("text", "")[:200],
+                            "document_id": c.get("metadata", {}).get("document_id"),
+                            "distance": c.get("distance"),
+                        }
+                        for c in context[:3]
+                    ],
+                    "what_would_help": confidence_result.what_would_help,
                 }
 
             # Build context string
@@ -293,13 +326,11 @@ ANSWER:"""
 
             answer = result.text
 
-            # Calculate confidence based on context relevance (lower distance = higher confidence)
-            avg_distance = sum(c.get('distance', 0) for c in context) / len(context)
-            confidence = max(0, 1 - avg_distance / 100)  # Normalize FAISS L2 distance
-
             return {
                 "answer": answer,
-                "confidence": round(confidence, 2)
+                "confidence": round(confidence_result.score, 2),
+                "abstained": False,
+                "confidence_signals": confidence_result.signals,
             }
 
         except Exception as e:

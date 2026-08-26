@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 from typing import List, Optional
 
+from app.config import get_settings
 from app.services.model_gateway.base import (
     EmbeddingRequest,
     EmbeddingResult,
@@ -82,11 +83,18 @@ class OpenAIProvider:
     # Embeddings
     # -----------------------------------------------------------------------
     async def embed(self, request: EmbeddingRequest) -> EmbeddingResult:
-        """Embed texts using OpenAI-compatible embeddings endpoint."""
-        response = self._client.embeddings.create(
-            model=self._embedding_model,
-            input=request.texts,
-        )
+        """Embed texts using OpenAI-compatible embeddings endpoint.
+
+        text-embedding-3-* models support a `dimensions` param that truncates
+        the output to the configured EMBEDDING_DIM. Without it, these models
+        always return 1536 dims regardless of what the FAISS index was built
+        for, silently corrupting retrieval the moment this provider is used.
+        """
+        kwargs = {"model": self._embedding_model, "input": request.texts}
+        if self._embedding_model.startswith("text-embedding-3"):
+            kwargs["dimensions"] = get_settings().EMBEDDING_DIM
+
+        response = self._client.embeddings.create(**kwargs)
         embeddings = [item.embedding for item in response.data]
         dim = len(embeddings[0]) if embeddings else 0
 

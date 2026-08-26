@@ -2,31 +2,59 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any, Dict, List, Optional
 
 import numpy as np
 
+from app.config import get_settings
 from app.services.model_gateway import EmbeddingRequest, create_gateway
 
 logger = logging.getLogger(__name__)
 
 
+def _run_async(coro):
+    """Run a coroutine from sync code, tolerating threads with no current
+    event loop. `asyncio.get_event_loop()` raises RuntimeError once a prior
+    `asyncio.run()`/loop has closed on this thread (e.g. after any other
+    async test or request already ran) — that used to be swallowed by the
+    caller's broad except and silently returned zero results.
+    """
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_closed():
+            raise RuntimeError("event loop is closed")
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    return loop.run_until_complete(coro)
+
+
 class VectorRetriever:
     """Dense vector retrieval using FAISS."""
 
-    def __init__(self, dimension: int = 384, index_path: Optional[str] = None):
+    def __init__(
+        self,
+        dimension: Optional[int] = None,
+        index_path: Optional[str] = None,
+        gateway: Optional[object] = None,
+    ):
         """Initialize vector retriever.
 
         Args:
-            dimension: Embedding dimension
+            dimension: Embedding dimension. Defaults to settings.EMBEDDING_DIM;
+                the index is still rebuilt automatically if the embedding
+                provider ever returns a different dimension at runtime.
             index_path: Optional path to save/load index
+            gateway: Optional pre-built ModelGateway (e.g. FakeProvider for
+                tests). Defaults to the configured provider via create_gateway().
         """
-        self.dimension = dimension
+        self.dimension = dimension or get_settings().EMBEDDING_DIM
         self.index_path = index_path
         self._index = None
         self._doc_store: Dict[int, Dict[str, Any]] = {}
-        self._gateway = create_gateway()
+        self._gateway = gateway or create_gateway()
         self._initialized = False
 
     def _ensure_index(self) -> None:
@@ -67,9 +95,7 @@ class VectorRetriever:
         for i in range(0, len(texts), batch_size):
             batch_texts = texts[i : i + batch_size]
             try:
-                import asyncio
-                loop = asyncio.get_event_loop()
-                result = loop.run_until_complete(
+                result = _run_async(
                     self._gateway.embed(EmbeddingRequest(texts=batch_texts))
                 )
                 embeddings = np.array(result.embeddings, dtype=np.float32)
@@ -85,6 +111,25 @@ class VectorRetriever:
             return 0
 
         embeddings = np.vstack(all_embeddings)
+        actual_dim = int(embeddings.shape[1])
+
+        if actual_dim != self.dimension:
+            # The embedding provider returned a different dimension than the
+            # index was built for (e.g. a provider fallback/switch mid-run).
+            # Rebuild the index at the new dimension and re-embed whatever
+            # was already stored, instead of crashing on faiss.add().
+            logger.warning(
+                "Vector index dimension changed from %s to %s; rebuilding "
+                "index and re-embedding %d stored document(s).",
+                self.dimension, actual_dim, len(self._doc_store),
+            )
+            import faiss
+            previous_docs = [self._doc_store[i] for i in sorted(self._doc_store)]
+            self.dimension = actual_dim
+            self._index = faiss.IndexFlatIP(actual_dim)
+            self._doc_store = {}
+            if previous_docs:
+                self.add_documents(previous_docs, batch_size=batch_size)
 
         # Add to FAISS index
         start_idx = len(self._doc_store)
@@ -121,9 +166,7 @@ class VectorRetriever:
             return []
 
         try:
-            import asyncio
-            loop = asyncio.get_event_loop()
-            result = loop.run_until_complete(
+            result = _run_async(
                 self._gateway.embed(EmbeddingRequest(texts=[query], purpose="query"))
             )
             query_embedding = np.array(result.embeddings[0], dtype=np.float32).reshape(1, -1)
@@ -131,6 +174,14 @@ class VectorRetriever:
             query_embedding = query_embedding / (np.linalg.norm(query_embedding) + 1e-8)
         except Exception as e:
             logger.error(f"Query embedding failed: {e}")
+            return []
+
+        if query_embedding.shape[1] != self._index.d:
+            logger.warning(
+                "Query embedding dim %d does not match vector index dim %d "
+                "(embedding provider changed); skipping vector retrieval for this query.",
+                query_embedding.shape[1], self._index.d,
+            )
             return []
 
         # Search FAISS index

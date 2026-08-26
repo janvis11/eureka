@@ -139,11 +139,17 @@ class GroqProvider:
         return self._embed_local_hash(request)
 
     async def _embed_openai(self, request: EmbeddingRequest) -> EmbeddingResult:
-        """Embed via OpenAI-compatible API."""
-        response = self._embedding_client.embeddings.create(
-            model=self._embedding_model,
-            input=request.texts,
-        )
+        """Embed via OpenAI-compatible API.
+
+        text-embedding-3-* models return 1536 dims unless `dimensions` is
+        passed explicitly, which would silently mismatch the FAISS index
+        built at the configured EMBEDDING_DIM.
+        """
+        kwargs = {"model": self._embedding_model, "input": request.texts}
+        if self._embedding_model.startswith("text-embedding-3"):
+            kwargs["dimensions"] = get_settings().EMBEDDING_DIM
+
+        response = self._embedding_client.embeddings.create(**kwargs)
         embeddings = [item.embedding for item in response.data]
         dim = len(embeddings[0]) if embeddings else 0
         return EmbeddingResult(

@@ -221,7 +221,6 @@ async def _queue_upload(background_tasks: BackgroundTasks, file: UploadFile, db:
 
 
 @router.post("/documents/upload")
-@router.post("/upload")
 async def upload_document(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
@@ -232,7 +231,6 @@ async def upload_document(
 
 
 @router.post("/documents/upload/batch")
-@router.post("/upload/batch")
 async def upload_documents_batch(
     background_tasks: BackgroundTasks,
     files: List[UploadFile] = File(...),

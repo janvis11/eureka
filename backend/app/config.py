@@ -60,8 +60,13 @@ class Settings(BaseSettings):
 
     # LLM Settings
     LLM_MODEL: str = "openai/gpt-oss-120b"  # Kept for backwards compat
-    LLM_TEMPERATURE: float = 0.7
+    LLM_TEMPERATURE: float = 0.2
     LLM_MAX_TOKENS: int = 1000
+
+    # Below this retrieval confidence (0-1), the RAG path abstains instead of
+    # asking the LLM to answer from weak evidence. See
+    # app/services/retrieval/confidence.py.
+    ABSTENTION_CONFIDENCE_THRESHOLD: float = 0.35
 
     # Discovery Settings
     MAX_GAPS: int = 15

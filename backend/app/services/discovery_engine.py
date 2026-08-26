@@ -1,4 +1,9 @@
 """
+LEGACY discovery engine — superseded by app.services.discovery.engine.DiscoveryEngine
+(the Neo4j-graph-backed pipeline). Kept only because routers/discovery.py's
+`/analyze` endpoint still falls back to it for full-text (non-graph) analysis.
+Do not add new features here; extend the app.services.discovery package instead.
+
 Enhanced Discovery Engine using provider-agnostic ModelGateway.
 
 Pipeline:

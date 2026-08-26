@@ -1,0 +1,1 @@
+{"id": "ex-1", "paragraph": "EXAMPLE FORMAT ONLY — replace with a real paragraph from your demo corpus", "gold_claims": ["EXAMPLE — a hand-extracted claim from the paragraph above"], "note": "See eval/README.md — this file needs ~30 real hand-labeled paragraphs before claim extraction P/R can be computed."}

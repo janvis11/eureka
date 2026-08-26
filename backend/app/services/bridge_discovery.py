@@ -1,3 +1,8 @@
+"""LEGACY bridge finder — superseded by app.services.discovery.bridge_discovery.BridgeFinder
+(Neo4j shortest-path based). Kept only because app.services.discovery_engine
+(also legacy) still imports it. Do not add new features here.
+"""
+
 from typing import List, Dict, Any
 import numpy as np
 import asyncio

@@ -23,7 +23,7 @@ import re
 from app.models.database import get_db
 from app.models.models import Discovery, Document
 from app.services.discovery.engine import DiscoveryEngine
-from app.services.discovery.scoring import rank_hypotheses
+from app.services.discovery.heuristic_priors import rank_hypotheses
 from app.services.rag_engine import RAGEngine
 from app.services.knowledge_graph import KeywordExtractor
 from app.services.shared import get_gateway

@@ -1,0 +1,43 @@
+{
+  "contradiction_detection": {
+    "available": true,
+    "is_example_data": true,
+    "n_pairs": 5,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "confusion_matrix": {
+      "CONTRADICTION": {
+        "CONTRADICTION": 2,
+        "CONTEXT_DIFFERENCE": 0,
+        "NOT_RELATED": 0
+      },
+      "CONTEXT_DIFFERENCE": {
+        "CONTRADICTION": 0,
+        "CONTEXT_DIFFERENCE": 2,
+        "NOT_RELATED": 0
+      },
+      "NOT_RELATED": {
+        "CONTRADICTION": 0,
+        "CONTEXT_DIFFERENCE": 1,
+        "NOT_RELATED": 0
+      }
+    }
+  },
+  "retrieval": {
+    "available": false,
+    "reason": "2 example row(s) found in qa.jsonl, but this metric needs a demo corpus ingested and ~40 real hand-labeled questions before it can run for real. Not computed."
+  },
+  "answer_grounding": {
+    "available": false,
+    "reason": "2 example row(s) found in qa.jsonl, but this metric needs a demo corpus and real questions before it can run for real. Not computed."
+  },
+  "abstention": {
+    "available": false,
+    "reason": "2 example row(s) found in qa.jsonl, but this metric needs a demo corpus and 10 real unanswerable questions before it can run for real. Not computed."
+  },
+  "claim_extraction": {
+    "available": false,
+    "reason": "1 example row(s) found in claims.jsonl, but this metric needs ~30 real hand-labeled paragraphs before it can run for real. Not computed."
+  }
+}

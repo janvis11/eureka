@@ -110,7 +110,9 @@ async def ask_question(
                 "sources": [],
                 "confidence": 0.0,
                 "retrieval_method": "none",
-                "error": "NO_DOCUMENTS_FOUND"
+                "error": "NO_DOCUMENTS_FOUND",
+                "abstained": True,
+                "reason": "no_evidence_retrieved",
             }
 
         if request.document_id:
@@ -163,6 +165,11 @@ async def ask_question(
             "confidence": answer_result.get("confidence", 0.0),
             "retrieved_chunks": len(results),
             "retrieval_method": "vector_faiss",
+            "abstained": answer_result.get("abstained", False),
+            "reason": answer_result.get("reason"),
+            "confidence_signals": answer_result.get("confidence_signals"),
+            "closest_evidence": answer_result.get("closest_evidence"),
+            "what_would_help": answer_result.get("what_would_help"),
         }
 
     except Exception as e:

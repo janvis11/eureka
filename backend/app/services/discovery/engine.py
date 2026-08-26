@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional
 from app.services.discovery.claim_extractor import ClaimExtractor
 from app.services.discovery.relation_extractor import RelationExtractor
 from app.services.discovery.contradiction_miner import ContradictionMiner
+from app.services.discovery.contradiction_verifier import ContradictionVerifier
 from app.services.discovery.bridge_discovery import BridgeFinder
 from app.services.discovery.gap_detector import GapDetector
 from app.services.discovery.hypothesis_generator import HypothesisGenerator
@@ -15,7 +16,7 @@ from app.services.discovery.hypothesis_validator import HypothesisValidator
 from app.services.discovery.experiment_designer import ExperimentDesigner
 from app.services.discovery.trend_radar import TrendRadar
 from app.services.discovery.report_builder import ReportBuilder
-from app.services.discovery.scoring import rank_hypotheses
+from app.services.discovery.heuristic_priors import rank_hypotheses
 from app.services.graph.repository import GraphRepository
 from app.services.graph.neo4j_client import get_neo4j_client
 from app.services.retrieval.hybrid_retriever import HybridRetriever
@@ -44,6 +45,7 @@ class DiscoveryEngine:
         self.claim_extractor = ClaimExtractor()
         self.relation_extractor = RelationExtractor()
         self.contradiction_miner = ContradictionMiner()
+        self.contradiction_verifier = ContradictionVerifier()
         self.bridge_finder = BridgeFinder(self.graph)
         self.gap_detector = GapDetector()
         self.hypothesis_generator = HypothesisGenerator()
@@ -83,8 +85,9 @@ class DiscoveryEngine:
         # Step 2: Extract claims from evidence
         claims = await self._extract_claims_from_evidence(evidence_items)
 
-        # Step 3: Find contradictions
-        contradictions = self.contradiction_miner.find_contradictions(claims)
+        # Step 3: Find and verify contradictions (candidate miner -> LLM filter)
+        contradiction_result = await self._mine_and_verify_contradictions(claims)
+        contradictions = contradiction_result["contradictions"]
 
         # Step 4: Detect gaps from claims
         gaps = self.gap_detector.find_gaps_from_claims(claims)
@@ -112,9 +115,39 @@ class DiscoveryEngine:
             hypotheses=hypotheses,
             trends=trends,
         )
+        report["contradiction_verification"] = contradiction_result["stats"]
+        report["context_differences"] = contradiction_result["context_differences"][:10]
 
-        logger.info(f"Discovery complete: {len(hypotheses)} hypotheses, {len(contradictions)} contradictions")
+        logger.info(
+            "Discovery complete: %d hypotheses, %d confirmed contradictions "
+            "(%d candidates, %d were context differences, not contradictions)",
+            len(hypotheses), len(contradictions),
+            contradiction_result["stats"]["candidates"],
+            contradiction_result["stats"]["context_differences"],
+        )
         return report
+
+    async def _mine_and_verify_contradictions(
+        self, claims: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """Two-stage contradiction detection: the keyword miner is a cheap,
+        high-recall candidate generator; the LLM verifier is the high-precision
+        filter that tells genuine contradictions apart from claims that only
+        differ by context (population, dataset, dosage, timeframe, ...)."""
+        candidates = self.contradiction_miner.find_contradictions(claims)
+        if not candidates:
+            return {
+                "contradictions": [],
+                "context_differences": [],
+                "not_related": [],
+                "stats": {
+                    "candidates": 0,
+                    "confirmed_contradictions": 0,
+                    "context_differences": 0,
+                    "not_related": 0,
+                },
+            }
+        return await self.contradiction_verifier.verify_batch(candidates)
 
     async def _extract_claims_from_evidence(
         self,
@@ -164,8 +197,8 @@ class DiscoveryEngine:
                 relations = await self.relation_extractor.extract(chunk)
                 all_relations.extend(relations)
 
-        # Find contradictions
-        contradictions = self.contradiction_miner.find_contradictions(all_claims)
+        # Find and verify contradictions (candidate miner -> LLM filter)
+        contradiction_result = await self._mine_and_verify_contradictions(all_claims)
 
         # Detect gaps
         gaps = self.gap_detector.find_gaps_from_claims(all_claims)
@@ -174,7 +207,9 @@ class DiscoveryEngine:
             "documents_processed": len(documents),
             "claims_extracted": len(all_claims),
             "relations_extracted": len(all_relations),
-            "contradictions": contradictions,
+            "contradictions": contradiction_result["contradictions"],
+            "context_differences": contradiction_result["context_differences"],
+            "contradiction_verification": contradiction_result["stats"],
             "gaps": self.gap_detector.aggregate_gaps(gaps),
             "claims": all_claims[:50],  # Limit output
         }
