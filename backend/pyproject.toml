@@ -1,0 +1,6 @@
+[tool.ruff.lint]
+# Keep CI lint output to real errors (syntax errors, unused imports/names,
+# undefined names) instead of ruff's broad default rule set, which surfaces
+# hundreds of pre-existing style findings (import sorting, Optional vs |None,
+# blind-except, etc.) across a codebase that predates this config.
+select = ["E9", "F"]
