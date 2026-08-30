@@ -4,9 +4,7 @@ from __future__ import annotations
 
 import logging
 import json
-import uuid
 import re
-from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 from app.services.graph.neo4j_client import Neo4jClient, get_neo4j_client
@@ -144,7 +142,7 @@ class GraphRepository:
         self, claim_id: str, entity_keys: List[str]
     ) -> int:
         """Link a claim to its entities."""
-        result = await self.client.execute_write(
+        await self.client.execute_write(
             LINK_CLAIM_TO_ENTITIES,
             {"claim_id": claim_id, "entity_keys": entity_keys},
         )

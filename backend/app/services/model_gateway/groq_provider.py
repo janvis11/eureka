@@ -160,7 +160,6 @@ class GroqProvider:
 
     def _embed_local(self, request: EmbeddingRequest) -> EmbeddingResult:
         """Embed via local SentenceTransformer."""
-        import numpy as np
         embeddings_np = self._local_embedder.encode(
             request.texts,
             batch_size=32,

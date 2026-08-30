@@ -58,9 +58,9 @@ def create_gateway(provider: Optional[str] = None) -> ModelGateway:
         # OpenAI-compatible provider (also covers Ollama via base_url)
         from app.services.model_gateway.groq_provider import GroqProvider  # reuse OpenAI-compat shape
 
-        try:
-            from openai import OpenAI
-        except ImportError:
+        import importlib.util
+
+        if importlib.util.find_spec("openai") is None:
             raise RuntimeError("Install 'openai' package: pip install openai")
 
         # We build a thin wrapper using the Groq provider structure

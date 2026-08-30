@@ -1,14 +1,37 @@
-"""Scoring utilities for hypotheses and discoveries."""
+"""Heuristic priors for ranking hypotheses — NOT validated scores.
+
+Renamed from `scoring.py`. Only
+`evidence_strength` is grounded in real signal: actual retrieval scores and
+counter-evidence counts. `novelty`, `impact`, `feasibility`, and
+`falsifiability` are keyword/substring matches against the hypothesis text
+the LLM itself wrote — an LLM that happens to say "dramatically" scores
+higher on impact regardless of whether the hypothesis is any good. That is
+a cheap prior for sorting a list, not a validated measurement, and callers
+must not present it to users as one.
+
+Every score this module returns carries a `basis` tag of either
+"heuristic_keyword_match" or "retrieval_grounded" so API responses and the
+UI can label it honestly instead of presenting a rubric-shaped number as
+fact.
+"""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
+# Dimensions that are real signal vs. keyword-matching priors.
+_GROUNDED_DIMENSIONS = {"evidence_strength"}
+_HEURISTIC_DIMENSIONS = {"novelty", "impact", "feasibility", "falsifiability"}
+
 
 @dataclass
 class HypothesisScore:
-    """Score breakdown for a hypothesis."""
+    """Score breakdown for a hypothesis.
+
+    `overall` is a weighted blend of one grounded signal and four keyword
+    heuristics — treat it as a sort key, not a confidence measure.
+    """
     novelty: float = 0.0
     evidence_strength: float = 0.0
     impact: float = 0.0
@@ -16,7 +39,11 @@ class HypothesisScore:
     falsifiability: float = 0.0
     overall: float = 0.0
 
-    def to_dict(self) -> Dict[str, float]:
+    def to_dict(self) -> Dict[str, Any]:
+        basis = {
+            dim: ("retrieval_grounded" if dim in _GROUNDED_DIMENSIONS else "heuristic_keyword_match")
+            for dim in ("novelty", "evidence_strength", "impact", "feasibility", "falsifiability")
+        }
         return {
             "novelty": self.novelty,
             "evidence_strength": self.evidence_strength,
@@ -24,6 +51,12 @@ class HypothesisScore:
             "feasibility": self.feasibility,
             "falsifiability": self.falsifiability,
             "overall": self.overall,
+            "basis": basis,
+            "disclaimer": (
+                "novelty/impact/feasibility/falsifiability are heuristic priors "
+                "from keyword matching on LLM-generated text, not validated "
+                "scores. Only evidence_strength is grounded in retrieval data."
+            ),
         }
 
 
@@ -36,12 +69,12 @@ def score_hypothesis(
 ) -> HypothesisScore:
     """Score a hypothesis based on multiple criteria.
 
-    Scoring rubric:
-    - novelty (0.25): How new/unexpected is this?
-    - evidence_strength (0.25): How strong is the supporting evidence?
-    - impact (0.20): What's the potential impact?
-    - feasibility (0.15): How feasible is validation?
-    - falsifiability (0.15): Is it testable/falsifiable?
+    Weighting (a sort key, not a validated rubric):
+    - novelty (0.25): heuristic keyword match + graph path length
+    - evidence_strength (0.25): grounded in real retrieval scores
+    - impact (0.20): heuristic keyword match
+    - feasibility (0.15): heuristic keyword match
+    - falsifiability (0.15): heuristic keyword match
 
     Args:
         hypothesis_text: The hypothesis text
@@ -92,7 +125,7 @@ def _calculate_novelty(
     keywords: Optional[List[str]] = None,
     path_length: Optional[int] = None,
 ) -> float:
-    """Calculate novelty score."""
+    """Heuristic keyword match, boosted by real graph path length when available."""
     score = 0.5  # Base score
 
     # Novelty keywords boost
@@ -120,7 +153,8 @@ def _calculate_evidence_strength(
     supporting: List[Dict[str, Any]],
     counter: List[Dict[str, Any]],
 ) -> float:
-    """Calculate evidence strength score."""
+    """The one grounded dimension: derived from actual retrieval scores and
+    counter-evidence counts, not text pattern matching."""
     if not supporting:
         return 0.0
 
@@ -141,7 +175,8 @@ def _calculate_evidence_strength(
 
 
 def _calculate_impact(text: str) -> float:
-    """Calculate potential impact score."""
+    """Heuristic keyword match — an LLM that writes "dramatically" scores
+    higher here regardless of whether the hypothesis matters."""
     impact_terms = [
         "significantly", "substantially", "dramatically",
         "improve", "enhance", "transform", "enable",
@@ -158,7 +193,7 @@ def _calculate_impact(text: str) -> float:
 
 
 def _calculate_feasibility(text: str) -> float:
-    """Calculate feasibility score."""
+    """Heuristic keyword match for concrete, testable-sounding language."""
     # Look for concrete, testable elements
     feasibility_terms = [
         "experiment", "test", "measure", "evaluate",
@@ -176,7 +211,7 @@ def _calculate_feasibility(text: str) -> float:
 
 
 def _calculate_falsifiability(text: str) -> float:
-    """Calculate falsifiability score."""
+    """Heuristic keyword match for conditional/predictive language."""
     # Falsifiable hypotheses have clear predictions
     falsifiability_terms = [
         "will", "would", "should", "expect",
@@ -200,7 +235,8 @@ def rank_hypotheses(
     hypotheses: List[Dict[str, Any]],
     top_k: int = 10,
 ) -> List[Dict[str, Any]]:
-    """Rank hypotheses by overall score."""
+    """Rank hypotheses by overall heuristic-prior score (a sort key, not a
+    validated measurement — see module docstring)."""
     scored = []
     for hyp in hypotheses:
         score = score_hypothesis(

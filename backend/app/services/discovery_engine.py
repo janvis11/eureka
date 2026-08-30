@@ -19,7 +19,7 @@ Pipeline:
    - Publishable research intelligence report
 """
 
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from app.config import get_settings
 from app.services.model_gateway.base import ChatMessage, GenerationRequest
 from datetime import datetime

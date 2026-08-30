@@ -171,7 +171,7 @@ class ReportBuilder:
         """
         lines = []
 
-        lines.append(f"# Discovery Report")
+        lines.append("# Discovery Report")
         lines.append(f"**Generated:** {report.get('generated_at', 'Unknown')}")
         lines.append(f"**Query:** {report.get('query', 'N/A')}")
         lines.append("")

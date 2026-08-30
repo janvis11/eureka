@@ -5,7 +5,6 @@
 
 from typing import List, Dict, Any
 import numpy as np
-import asyncio
 
 from app.services.model_gateway.base import EmbeddingRequest
 

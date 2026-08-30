@@ -8,7 +8,6 @@ from typing import Any, Dict, List, Optional
 from app.services.model_gateway import (
     ChatMessage,
     GenerationRequest,
-    GenerationResult,
     create_gateway,
 )
 

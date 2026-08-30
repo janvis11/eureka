@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import re
 from collections import defaultdict
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -54,7 +55,7 @@ class BM25Retriever:
     def _tokenize(self, text: str) -> List[str]:
         """Tokenize text into tokens."""
         text = text.lower()
-        tokens = re.findall(r'\b\w+\b', text) if 're' in globals() else text.split()
+        tokens = re.findall(r'\b\w+\b', text)
         return [t for t in tokens if len(t) > 1]
 
     def search(
@@ -64,7 +65,6 @@ class BM25Retriever:
         filter_ids: Optional[List[str]] = None,
     ) -> List[Dict[str, Any]]:
         """Search for documents matching the query."""
-        import re
         query_tokens = self._tokenize(query)
 
         if not query_tokens:

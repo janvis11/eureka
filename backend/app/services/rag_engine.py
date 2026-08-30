@@ -7,7 +7,6 @@ from typing import List, Dict, Any, Optional
 import faiss
 import numpy as np
 import os
-import asyncio
 from app.config import get_settings
 from app.services.model_gateway.base import (
     ChatMessage,

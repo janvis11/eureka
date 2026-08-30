@@ -392,7 +392,7 @@ async def get_stats():
             "structural_index": structural_stats,
             "knowledge_graph": knowledge_graph
         }
-    except Exception as e:
+    except Exception:
         return {
             "vector_store": {"total_chunks": 0},
             "structural_index": {"indexed_documents": 0},

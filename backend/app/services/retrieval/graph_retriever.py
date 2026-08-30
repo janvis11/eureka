@@ -58,9 +58,6 @@ class GraphRetriever:
         results = []
 
         try:
-            # Get neighborhood
-            neighborhood = await self.repository.get_neighborhood(entity_key, hops=hops)
-
             # Get claims about the entity
             claims = await self.repository.get_claims_by_entity(entity_key, limit=top_k)
             for claim in claims:

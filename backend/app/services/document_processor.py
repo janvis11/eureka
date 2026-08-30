@@ -6,6 +6,8 @@ from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime
 import logging
 
+from app.services.retrieval.structural_rag_engine import SectionNode, SectionTree
+
 logger = logging.getLogger(__name__)
 
 
@@ -48,7 +50,7 @@ class DocumentProcessor:
         self,
         file_path: str,
         doc_id: str,
-    ) -> "SectionTree":
+    ) -> SectionTree:
         """
         Extract document structure as a hierarchical SectionTree.
 
@@ -60,8 +62,6 @@ class DocumentProcessor:
 
         Returns a SectionTree suitable for PageIndex-style retrieval.
         """
-        from app.services.retrieval.structural_rag_engine import SectionNode, SectionTree
-
         # Extract text with page info
         pages_text = await self._extract_pages(file_path)
         full_text = "\n".join([p["text"] for p in pages_text])

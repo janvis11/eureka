@@ -5,7 +5,7 @@ All providers must implement the ModelGateway protocol.
 
 from __future__ import annotations
 
-from typing import List, Literal, Optional, Protocol, runtime_checkable
+from typing import List, Literal, Protocol, runtime_checkable
 
 from pydantic import BaseModel, Field
 

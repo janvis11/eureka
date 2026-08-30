@@ -13,7 +13,7 @@ Features:
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 from pydantic import BaseModel
 import logging
 import uuid
@@ -23,7 +23,6 @@ import re
 from app.models.database import get_db
 from app.models.models import Discovery, Document
 from app.services.discovery.engine import DiscoveryEngine
-from app.services.discovery.heuristic_priors import rank_hypotheses
 from app.services.rag_engine import RAGEngine
 from app.services.knowledge_graph import KeywordExtractor
 from app.services.shared import get_gateway
@@ -167,7 +166,7 @@ async def get_graph_gaps(
 
     doc_texts = []
     for doc in documents:
-        results = await rag_engine.semantic_search(f"research findings results", top_k=20)
+        results = await rag_engine.semantic_search("research findings results", top_k=20)
         text = "\n".join([r.get("text", "") for r in results
                           if r.get("metadata", {}).get("document_id") == str(doc.id)][:10])
         if text:
