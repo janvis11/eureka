@@ -1,14 +1,28 @@
-"""OpenAI-compatible provider for the model gateway.
+"""NVIDIA NIM provider for the model gateway.
 
-Works with OpenAI, Azure OpenAI, Ollama, and any OpenAI-compatible API.
+Uses NVIDIA's hosted, OpenAI-compatible inference API
+(https://integrate.api.nvidia.com/v1) for generation and embeddings.
+
+Quirks specific to this provider that the OpenAI-compatible base pattern
+doesn't cover (verified against the live API):
+- Nemotron 3 models have "thinking" (reasoning trace) ON by default, which
+  pollutes JSON-mode output unless explicitly disabled per request.
+- Embedding models expect an `input_type` of "query" or "passage" (NVIDIA's
+  retrieval convention), not just raw text.
+- `nemotron-3-embed-1b` only accepts its native 2048-dim output — unlike
+  OpenAI's text-embedding-3-*, there's no `dimensions` truncation param.
+- NVIDIA's own docs recommend `guided_json` (a JSON-schema-constrained
+  decode) over plain `response_format={"type": "json_object"}`, since the
+  latter permits any valid JSON including `{}`. This provider still uses
+  plain json_mode for now — adopting guided_json needs each caller to
+  supply a schema, which is a larger change. See docs/LIMITATIONS.md.
 """
 
 from __future__ import annotations
 
 import logging
-from typing import List, Optional
+from typing import List
 
-from app.config import get_settings
 from app.services.model_gateway.base import (
     EmbeddingRequest,
     EmbeddingResult,
@@ -21,29 +35,25 @@ from app.services.model_gateway.retry import retry_llm_call
 logger = logging.getLogger(__name__)
 
 
-class OpenAIProvider:
-    """Provider using OpenAI-compatible APIs for generation and embeddings."""
+class NvidiaProvider:
+    """Provider using NVIDIA NIM's OpenAI-compatible API."""
 
     def __init__(
         self,
         api_key: str,
-        generation_model: str = "gpt-4.1",
-        embedding_model: str = "text-embedding-3-small",
-        base_url: Optional[str] = None,
+        generation_model: str = "nvidia/nemotron-3-super-120b-a12b",
+        embedding_model: str = "nvidia/nemotron-3-embed-1b",
+        base_url: str = "https://integrate.api.nvidia.com/v1",
     ):
         from openai import OpenAI
 
-        kwargs = {"api_key": api_key}
-        if base_url:
-            kwargs["base_url"] = base_url
-
-        self._client = OpenAI(**kwargs)
+        self._client = OpenAI(api_key=api_key, base_url=base_url)
         self._generation_model = generation_model
         self._embedding_model = embedding_model
 
         logger.info(
-            f"OpenAIProvider initialized: generation={generation_model}, "
-            f"embedding={embedding_model}, base_url={base_url or 'default'}"
+            f"NvidiaProvider initialized: generation={generation_model}, "
+            f"embedding={embedding_model}, base_url={base_url}"
         )
 
     # -----------------------------------------------------------------------
@@ -51,7 +61,7 @@ class OpenAIProvider:
     # -----------------------------------------------------------------------
     @retry_llm_call
     async def generate(self, request: GenerationRequest) -> GenerationResult:
-        """Generate text using OpenAI-compatible chat completions."""
+        """Generate text using NVIDIA NIM chat completions."""
         messages = [
             {"role": m.role, "content": m.content} for m in request.messages
         ]
@@ -60,6 +70,10 @@ class OpenAIProvider:
             "messages": messages,
             "temperature": request.temperature,
             "max_tokens": request.max_tokens,
+            # Nemotron 3 reasoning is on by default and emits a thinking
+            # trace before the actual content, which breaks JSON parsing
+            # and wastes tokens on prompts that don't need it.
+            "extra_body": {"chat_template_kwargs": {"enable_thinking": False}},
         }
         if request.json_mode:
             kwargs["response_format"] = {"type": "json_object"}
@@ -86,18 +100,19 @@ class OpenAIProvider:
     # -----------------------------------------------------------------------
     @retry_llm_call
     async def embed(self, request: EmbeddingRequest) -> EmbeddingResult:
-        """Embed texts using OpenAI-compatible embeddings endpoint.
+        """Embed texts using NVIDIA NIM's embeddings endpoint.
 
-        text-embedding-3-* models support a `dimensions` param that truncates
-        the output to the configured EMBEDDING_DIM. Without it, these models
-        always return 1536 dims regardless of what the FAISS index was built
-        for, silently corrupting retrieval the moment this provider is used.
+        NVIDIA's retrieval-tuned embedding models score higher when told
+        whether the text being embedded is a search query or a document to
+        be searched over — passed via `input_type`, not a standard OpenAI
+        field.
         """
-        kwargs = {"model": self._embedding_model, "input": request.texts}
-        if self._embedding_model.startswith("text-embedding-3"):
-            kwargs["dimensions"] = get_settings().EMBEDDING_DIM
-
-        response = self._client.embeddings.create(**kwargs)
+        input_type = "query" if request.purpose == "query" else "passage"
+        response = self._client.embeddings.create(
+            model=self._embedding_model,
+            input=request.texts,
+            extra_body={"input_type": input_type},
+        )
         embeddings = [item.embedding for item in response.data]
         dim = len(embeddings[0]) if embeddings else 0
 
@@ -108,7 +123,7 @@ class OpenAIProvider:
         )
 
     # -----------------------------------------------------------------------
-    # Reranking (not natively supported — passthrough)
+    # Reranking (not exposed through this endpoint — passthrough)
     # -----------------------------------------------------------------------
     async def rerank(
         self, query: str, documents: List[str], top_k: int = 10

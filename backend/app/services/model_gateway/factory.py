@@ -24,9 +24,13 @@ def create_gateway(provider: Optional[str] = None) -> ModelGateway:
     settings = get_settings()
     provider = (provider or getattr(settings, "MODEL_PROVIDER", "") or "").lower().strip()
 
-    # Auto-detect if provider not set
+    # Auto-detect if provider not set. NVIDIA (Nemotron) is checked first —
+    # it's the default provider now; Groq/OpenAI still work as a fallback
+    # if their keys are set and NVIDIA_API_KEY isn't.
     if not provider or provider == "auto":
-        if getattr(settings, "GROQ_API_KEY", None):
+        if getattr(settings, "NVIDIA_API_KEY", None):
+            provider = "nvidia"
+        elif getattr(settings, "GROQ_API_KEY", None):
             provider = "groq"
         elif getattr(settings, "OPENAI_API_KEY", None):
             provider = "openai"
@@ -37,13 +41,23 @@ def create_gateway(provider: Optional[str] = None) -> ModelGateway:
         else:
             logger.warning(
                 "No API keys found — falling back to fake provider. "
-                "Set GROQ_API_KEY, OPENAI_API_KEY, etc. in your .env file."
+                "Set NVIDIA_API_KEY, GROQ_API_KEY, etc. in your .env file."
             )
             provider = "fake"
 
     logger.info(f"Creating model gateway: provider={provider}")
 
-    if provider == "groq":
+    if provider == "nvidia":
+        from app.services.model_gateway.nvidia_provider import NvidiaProvider
+
+        return NvidiaProvider(
+            api_key=settings.NVIDIA_API_KEY,
+            generation_model=getattr(settings, "GENERATION_MODEL", "nvidia/nemotron-3-super-120b-a12b"),
+            embedding_model=getattr(settings, "EMBEDDING_MODEL", "nvidia/nemotron-3-embed-1b"),
+            base_url=getattr(settings, "NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1"),
+        )
+
+    elif provider == "groq":
         from app.services.model_gateway.groq_provider import GroqProvider
 
         return GroqProvider(
@@ -92,5 +106,5 @@ def create_gateway(provider: Optional[str] = None) -> ModelGateway:
     else:
         raise ValueError(
             f"Unknown model provider: '{provider}'. "
-            f"Supported: groq, openai, ollama, fake"
+            f"Supported: nvidia, groq, openai, ollama, fake"
         )

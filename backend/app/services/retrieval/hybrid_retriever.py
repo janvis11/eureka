@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, List, Optional
 
+from app.config import get_settings
 from app.services.retrieval.query_planner import QueryPlanner
 from app.services.retrieval.bm25_retriever import BM25Retriever
 from app.services.retrieval.vector_retriever import VectorRetriever
@@ -24,7 +25,7 @@ class HybridRetriever:
         bm25: Optional[BM25Retriever] = None,
         vector: Optional[VectorRetriever] = None,
         graph: Optional[GraphRetriever] = None,
-        use_reranker: bool = False,
+        use_reranker: Optional[bool] = None,
     ):
         """Initialize hybrid retriever.
 
@@ -32,12 +33,15 @@ class HybridRetriever:
             bm25: BM25 retriever instance
             vector: Vector retriever instance
             graph: Graph retriever instance
-            use_reranker: Whether to use LLM reranker
+            use_reranker: Whether to use LLM reranker. Defaults to
+                settings.USE_RERANKER.
         """
         self.bm25 = bm25 or BM25Retriever()
         self.vector = vector or VectorRetriever()
         self.graph = graph or GraphRetriever()
         self.planner = QueryPlanner()
+        if use_reranker is None:
+            use_reranker = get_settings().USE_RERANKER
         self.reranker = LLMReranker() if use_reranker else None
         self._use_reranker = use_reranker
 

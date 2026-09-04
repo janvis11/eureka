@@ -58,6 +58,38 @@ that claims to be objective is worse for trust than stating it up front.
   reports these as `NOT RUN` with the specific missing input rather than
   a fabricated number.
 
+## Newly added, not yet measured
+
+- **Reranking is on by default** (`settings.USE_RERANKER = True`,
+  `HybridRetriever`) but there is no retrieval ablation yet proving it's
+  worth its added latency/cost on this corpus — see
+  `docs/DECISIONS.md` #9. Turning it off and comparing is one command
+  (`USE_RERANKER=false`) away; the eval to actually do that comparison
+  doesn't exist yet.
+- **Citation grounding is not enforced at generation time.** `eval/metrics.py`
+  has `verbatim_grounding_rate` to *measure* whether cited quotes appear
+  verbatim in their source chunk, but nothing in the live answer path
+  extracts per-citation quotes to check — `rag_engine.py`'s prompt doesn't
+  ask for structured citations, only a source-numbered context block.
+  Wiring this properly needs the generation prompt to output
+  claim-to-quote citations, not just a bracketed source index; that's a
+  prompt/output-format change, not a plug-in check, and hasn't been done.
+- **Retry/backoff on provider calls** (`app/services/model_gateway/retry.py`)
+  is untested against a real rate-limited or flaky provider — only that it
+  doesn't break the existing fallback paths (unit tests pass). Worst-case
+  added latency per call is ~11s (three attempts, exponential backoff up
+  to 8s) before falling through to existing error handling.
+- **NVIDIA NIM (Nemotron) is now the default provider, untested live.**
+  `NvidiaProvider` is verified against a mocked client only
+  (`tests/test_nvidia_provider.py`) — it has not made a real call against
+  `https://integrate.api.nvidia.com/v1`. Specific unknowns: whether
+  disabling "thinking" mode actually produces clean JSON output on every
+  Nemotron 3 model size, whether free-tier rate limits are survivable for
+  real traffic (NVIDIA publishes no SLA; third-party reports describe fast
+  429s independent of request rate), and whether `guided_json` should
+  replace plain `json_mode` for stricter output validation. See
+  `docs/DECISIONS.md` #10.
+
 ## Not fixed
 
 - **Ephemeral demo storage**: `render.yaml` still points

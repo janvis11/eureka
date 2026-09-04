@@ -114,9 +114,8 @@ backend:
 - faiss for vector search
 - neo4j for graph storage
 - hybrid retrieval: bm25 + vector + graph, with fusion and reranking
-- provider-agnostic model gateway (groq, openai-compatible, local fallback)
-- groq for llm generation
-- openai-compatible embeddings when available
+- provider-agnostic model gateway (nvidia nemotron, groq, openai-compatible, local fallback)
+- nvidia nemotron for llm generation and embeddings by default
 - local lexical embeddings as fallback
 
 ## deployment

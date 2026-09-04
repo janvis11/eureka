@@ -19,6 +19,7 @@ from app.services.model_gateway.base import (
     RerankResult,
 )
 from app.services.model_gateway.local_embeddings import embed_texts
+from app.services.model_gateway.retry import retry_llm_call
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +85,7 @@ class GroqProvider:
     # -----------------------------------------------------------------------
     # Generation
     # -----------------------------------------------------------------------
+    @retry_llm_call
     async def generate(self, request: GenerationRequest) -> GenerationResult:
         """Generate text using Groq API."""
         messages = [
@@ -138,6 +140,7 @@ class GroqProvider:
 
         return self._embed_local_hash(request)
 
+    @retry_llm_call
     async def _embed_openai(self, request: EmbeddingRequest) -> EmbeddingResult:
         """Embed via OpenAI-compatible API.
 

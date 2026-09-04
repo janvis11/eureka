@@ -32,25 +32,31 @@ class Settings(BaseSettings):
     # Which provider to use: groq, openai, ollama, fake, auto
     MODEL_PROVIDER: str = "auto"
 
-    # Generation model (provider-specific model name)
-    GENERATION_MODEL: str = "openai/gpt-oss-120b"
+    # Generation model (provider-specific model name). Default is NVIDIA
+    # NIM's Nemotron 3 Super — set to a Groq/OpenAI model name if you switch
+    # MODEL_PROVIDER away from nvidia.
+    GENERATION_MODEL: str = "nvidia/nemotron-3-super-120b-a12b"
 
-    # Embedding model (used by OpenAI-compatible embedding endpoint)
-    EMBEDDING_MODEL: str = "text-embedding-3-small"
+    # Embedding model (used by the OpenAI-compatible embedding endpoint)
+    EMBEDDING_MODEL: str = "nvidia/nemotron-3-embed-1b"
 
-    # Embedding dimension (must match the embedding model output)
-    EMBEDDING_DIM: int = 384
+    # Embedding dimension (must match the embedding model output).
+    # nemotron-3-embed-1b only returns its native 2048 dims — unlike
+    # OpenAI's text-embedding-3-*, there's no truncation param.
+    EMBEDDING_DIM: int = 2048
 
     # Provider API keys (set whichever provider you use)
     GROQ_API_KEY: Optional[str] = None
     OPENAI_API_KEY: Optional[str] = None
     ANTHROPIC_API_KEY: Optional[str] = None
     GEMINI_API_KEY: Optional[str] = None
+    NVIDIA_API_KEY: Optional[str] = None
 
     # OpenAI-compatible base URLs
     OPENAI_BASE_URL: Optional[str] = None
     EMBEDDING_BASE_URL: Optional[str] = None
     OLLAMA_BASE_URL: str = "http://localhost:11434/v1"
+    NVIDIA_BASE_URL: str = "https://integrate.api.nvidia.com/v1"
 
     # Neo4j Configuration
     NEO4J_URI: str = "bolt://localhost:7687"
@@ -67,6 +73,12 @@ class Settings(BaseSettings):
     # asking the LLM to answer from weak evidence. See
     # app/services/retrieval/confidence.py.
     ABSTENTION_CONFIDENCE_THRESHOLD: float = 0.35
+
+    # Whether HybridRetriever reranks fused results with an LLM call before
+    # returning them. Adds latency/cost per query; Anthropic's published
+    # numbers put a large share of retrieval error reduction here, so it
+    # defaults on. See docs/DECISIONS.md.
+    USE_RERANKER: bool = True
 
     # Discovery Settings
     MAX_GAPS: int = 15
@@ -134,6 +146,7 @@ class Settings(BaseSettings):
         "OPENAI_API_KEY",
         "ANTHROPIC_API_KEY",
         "GEMINI_API_KEY",
+        "NVIDIA_API_KEY",
         "OPENAI_BASE_URL",
         "EMBEDDING_BASE_URL",
         mode="before",

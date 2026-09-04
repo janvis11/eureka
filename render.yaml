@@ -23,11 +23,13 @@ services:
       - key: MODEL_PROVIDER
         value: auto
       - key: GENERATION_MODEL
-        value: openai/gpt-oss-120b
+        value: nvidia/nemotron-3-super-120b-a12b
       - key: EMBEDDING_MODEL
-        value: text-embedding-3-small
+        value: nvidia/nemotron-3-embed-1b
       - key: EMBEDDING_DIM
-        value: 384
+        value: 2048
+      - key: NVIDIA_API_KEY
+        sync: false
       - key: GROQ_API_KEY
         sync: false
       - key: OPENAI_API_KEY

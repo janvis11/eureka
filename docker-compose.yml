@@ -57,7 +57,10 @@ services:
       - SECRET_KEY=${SECRET_KEY:-change-this-in-production}
       - DEBUG=${DEBUG:-false}
       - MODEL_PROVIDER=${MODEL_PROVIDER:-auto}
-      - GENERATION_MODEL=${GENERATION_MODEL:-openai/gpt-oss-120b}
+      - GENERATION_MODEL=${GENERATION_MODEL:-nvidia/nemotron-3-super-120b-a12b}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-nvidia/nemotron-3-embed-1b}
+      - EMBEDDING_DIM=${EMBEDDING_DIM:-2048}
+      - NVIDIA_API_KEY=${NVIDIA_API_KEY:-}
       - GROQ_API_KEY=${GROQ_API_KEY:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}

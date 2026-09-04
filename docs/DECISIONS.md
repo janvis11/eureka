@@ -172,3 +172,110 @@ still coexist in the codebase (`contradiction_graph.py` in the legacy
 path, `contradiction_miner.py`/`contradiction_verifier.py` in the current
 one) until `/analyze` is ported onto the current engine. See
 `docs/LIMITATIONS.md`.
+
+## 8. A deterministic pipeline, not an agent framework
+
+**Decision:** Discovery and retrieval stay a fixed sequence of named steps
+(retrieve → extract claims → mine candidates → verify → score → report)
+implemented as plain async Python, not a graph/agent framework like
+LangGraph or CrewAI, and not a dynamically-planning agent loop.
+
+**Why:** Anthropic's own guidance on agent design draws a explicit line
+between *workflows* (LLMs orchestrated through predefined code paths) and
+*agents* (the LLM directs its own process), and recommends starting with
+the simplest structure that works, adding agentic complexity only when it
+demonstrably improves outcomes. Eureka's discovery pipeline is a workflow:
+every step is known in advance, the LLM's job is judgment at specific
+points (claim extraction, contradiction verification, hypothesis scoring),
+not deciding what to do next. A framework built for dynamic planning would
+add indirection without solving a problem this pipeline actually has.
+
+**What I rejected:** Adopting an orchestration framework for architectural
+credibility (making the system look more sophisticated) rather than
+because the problem needs dynamic planning. The counter-argument some
+frameworks are built to solve — recovering from unexpected tool-call
+failures, re-planning mid-task — doesn't apply here: every failure mode in
+this pipeline (Neo4j down, LLM provider down, weak retrieval) already has
+a fixed, known fallback, not one that needs to be discovered at runtime.
+
+**What it cost me:** If a future feature genuinely needs dynamic
+re-planning (e.g. an agent that decides which corpora to search next based
+on intermediate findings), it doesn't have infrastructure to build on yet
+— that would be a real, new architectural decision, not a natural
+extension of today's pipeline.
+
+## 9. Reranking on by default, retry/backoff on every provider call
+
+**Decision:** `HybridRetriever` now reranks fused results with an LLM call
+by default (`settings.USE_RERANKER = True`; previously `False`), and every
+provider's network call (`generate`, `embed`) retries up to 3 times with
+exponential backoff (`app/services/model_gateway/retry.py`) before falling
+through to existing fallback behavior.
+
+**Why:** Reranking is a proven, cheap way to recover the retrieval quality
+lost to fusion's coarse scoring — published numbers on similar setups show
+it accounts for a large share of the achievable error reduction, and
+`LLMReranker` already existed in the codebase, just never turned on.
+Retry/backoff had zero coverage anywhere in the model gateway before this;
+a single transient rate-limit or connection reset was indistinguishable
+from a real provider outage, and would trigger the same fallback path
+(local embeddings, error responses) that's meant for actual failures.
+
+**What I rejected:** A per-provider retry implementation (duplicates the
+same backoff logic three times) in favor of one shared decorator applied
+at each provider's actual call site — keeps the fallback logic (e.g.
+`GroqProvider` switching to local embeddings) unchanged and untouched by
+the retry layer, since retries exhaust *before* the provider's own except
+block runs.
+
+**What it cost me:** Reranking adds one LLM call per query when the fused
+result set has more than 3 items — real latency and cost per query, not
+yet measured against the retrieval ablation this justifies (see
+`docs/LIMITATIONS.md`). Retries add up to ~11 seconds of worst-case
+latency (1+2+4s backoff, capped at 8s per wait) before a call finally
+fails through to its fallback, which is slower than failing immediately —
+acceptable for correctness, worth watching if it shows up in p95 latency.
+
+## 10. NVIDIA NIM (Nemotron) as the default provider instead of Groq
+
+**Decision:** `MODEL_PROVIDER=auto` now checks `NVIDIA_API_KEY` first,
+ahead of `GROQ_API_KEY`/`OPENAI_API_KEY`. New `NvidiaProvider`
+(`nvidia_provider.py`) talks to NVIDIA's hosted, OpenAI-compatible NIM API
+for both generation (`nvidia/nemotron-3-super-120b-a12b`) and embeddings
+(`nvidia/nemotron-3-embed-1b`, native 2048 dims — `EMBEDDING_DIM` default
+changed to match).
+
+**Why:** A free-tier NVIDIA API key gets access to a large (120B MoE),
+long-context (1M token) model at no cost, and the endpoint is genuinely
+OpenAI-compatible — it slots into the existing gateway pattern rather than
+requiring a new integration shape. Groq and OpenAI stay fully supported as
+fallback providers (unset `NVIDIA_API_KEY` and auto-detection moves on to
+whichever key is set next).
+
+**What I rejected:** Making NVIDIA the *only* provider (removing Groq/OpenAI
+support) — the whole point of the provider-agnostic gateway (decision #1)
+is not being locked to one vendor, and NVIDIA's free-tier rate limits are
+unconfirmed and reportedly aggressive (see below), so keeping a working
+fallback path matters more here than usual.
+
+**What it cost me, and what's unverified:**
+- Nemotron 3 has "thinking" (a reasoning trace) on by default, which
+  breaks JSON-mode parsing if not explicitly disabled per request
+  (`extra_body={"chat_template_kwargs": {"enable_thinking": False}}` —
+  implemented, but only tested against a mocked client, not the live API).
+- NVIDIA's own docs recommend `guided_json` (schema-constrained decoding)
+  over plain `response_format={"type": "json_object"}`, since the latter
+  permits an empty `{}` as valid output. This provider still uses plain
+  json_mode — adopting `guided_json` means every caller supplying an
+  explicit JSON schema, which is a larger change than this pass covered.
+- Free-tier rate limits are **not confirmed** — NVIDIA doesn't publish an
+  SLA, and third-party reports describe fast (~0.16s), account-level 429s
+  independent of request rate. The retry/backoff added in decision #9
+  covers this, but hasn't been exercised against real NVIDIA throttling.
+- A wrong/expired NVIDIA API key returns HTTP **403**, not 401 — any
+  future error-handling code that assumes 401 means "bad auth" needs to
+  check for both.
+- `nemotron-3-embed-1b` requires an `input_type` of `"query"` or
+  `"passage"` per request (mapped from the gateway's existing
+  `EmbeddingRequest.purpose` field) — untested against the live API,
+  only against a mocked client (`tests/test_nvidia_provider.py`).
